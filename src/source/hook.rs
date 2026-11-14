@@ -159,7 +159,7 @@ pub fn install(root: &Path, wait_secs: u64) -> anyhow::Result<PathBuf> {
         wait_secs + 10,
     )?;
     for event in super::events::HOOK_EVENTS {
-        add(*event, format!("\"{exe}\" hook --event"), "hook --event", 5)?;
+        add(event, format!("\"{exe}\" hook --event"), "hook --event", 5)?;
     }
     std::fs::create_dir_all(root)?;
     std::fs::write(&path, serde_json::to_string_pretty(&settings)?)?;
