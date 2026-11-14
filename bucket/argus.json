@@ -1,13 +1,13 @@
 {
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Watch and steer your Claude Code agents live, from the terminal, on any machine.",
   "homepage": "https://github.com/serkankoyun/argus",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/serkankoyun/argus/releases/download/v0.1.17/argus-v0.1.17-x86_64-pc-windows-msvc.zip",
-      "hash": "5a5a583c12ac00df553b09a1e60456096af8d7fffd8343e4846190d45be694e6",
-      "extract_dir": "argus-v0.1.17-x86_64-pc-windows-msvc"
+      "url": "https://github.com/serkankoyun/argus/releases/download/v0.1.18/argus-v0.1.18-x86_64-pc-windows-msvc.zip",
+      "hash": "60354add7bc0012afdd01021ac5780757cf5265c01373da740549d85829e5d33",
+      "extract_dir": "argus-v0.1.18-x86_64-pc-windows-msvc"
     }
   },
   "bin": "argus.exe",
