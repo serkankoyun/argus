@@ -232,3 +232,6 @@ teams-from = FROM TEAM
 teams-to = TO TEAM
 teams-count = MSGS
 teams-latest = LATEST
+teams-open = open team
+key-team-move = choose team
+key-leave-team = all teams

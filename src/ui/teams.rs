@@ -46,13 +46,20 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         cons.resize(per_row, Constraint::Fill(1));
         let cols = Layout::horizontal(cons).split(row_areas[r]);
         for (c, team) in chunk.iter().enumerate() {
-            draw_card(frame, cols[c], app, team);
+            let idx = r * per_row + c;
+            draw_card(
+                frame,
+                cols[c],
+                app,
+                team,
+                idx == app.team_cursor % teams.len(),
+            );
         }
     }
     draw_cross(frame, cross, app);
 }
 
-fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str) {
+fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool) {
     let s = &app.full;
     let i = &app.i18n;
     let members: Vec<_> = s.agents.iter().filter(|a| a.team_key() == team).collect();

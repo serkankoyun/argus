@@ -163,14 +163,29 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
     let key =
         |k: &'static str| Span::styled(format!(" {k} "), Style::new().bg(BORDER).fg(Color::White));
     let label = |id: &str| Span::styled(format!(" {}  ", app.i18n.t(id)), Style::new().fg(DIM));
-    let mut spans = vec![
-        key("1-0"),
-        label("key-views"),
-        key("↑↓"),
-        label("key-select"),
-        key("⏎"),
-        label("key-detail"),
-    ];
+    let mut spans = if app.view == View::Teams {
+        vec![
+            key("←→"),
+            label("key-team-move"),
+            key("⏎"),
+            label("teams-open"),
+            key("1-0"),
+            label("key-views"),
+        ]
+    } else {
+        let mut v = vec![
+            key("1-0"),
+            label("key-views"),
+            key("↑↓"),
+            label("key-select"),
+            key("⏎"),
+            label("key-detail"),
+        ];
+        if app.team.is_some() && app.view == View::Overview {
+            v.extend([key("esc"), label("key-leave-team")]);
+        }
+        v
+    };
     if app.pending_approval().is_some() {
         spans.extend([
             key("a"),

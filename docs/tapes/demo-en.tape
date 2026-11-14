@@ -48,8 +48,13 @@ Type "0"
 Sleep 4s
 Screenshot docs/media/pair-en.png
 Type "T"
-Sleep 3s
+Sleep 2s
+Right
+Sleep 2s
 Screenshot docs/media/teams-en.png
+Enter
+Sleep 3s
+Screenshot docs/media/team-overview-en.png
 Type "5"
 Type "g"
 Sleep 4s

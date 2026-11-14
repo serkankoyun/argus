@@ -230,3 +230,6 @@ teams-from = İSTEYEN TAKIM
 teams-to = İSTENEN TAKIM
 teams-count = MESAJ
 teams-latest = SON
+teams-open = takıma gir
+key-team-move = takım seç
+key-leave-team = tüm takımlar

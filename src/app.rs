@@ -72,6 +72,8 @@ pub struct App {
     pub team: Option<String>,
     /// Group Graph/Room by team instead of host (`g`).
     pub group_by_team: bool,
+    /// Highlighted card in the Teams view.
+    pub team_cursor: usize,
     rx: Receiver<Snapshot>,
     controls: Sender<Control>,
     notices: Receiver<Notice>,
@@ -104,6 +106,7 @@ impl App {
             full: Snapshot::default(),
             team: None,
             group_by_team: false,
+            team_cursor: 0,
             rx: ch.snapshots,
             controls: ch.controls,
             notices: ch.notices,
@@ -174,6 +177,35 @@ impl App {
         if !valid {
             self.selected = self.ordered().first().map(|a| a.id.clone());
         }
+    }
+
+    /// Opens a team: every view is filtered to it, starting from the Overview.
+    pub fn open_team(&mut self, team: String) {
+        self.team = Some(team);
+        self.refilter();
+        self.selected = self.ordered().first().map(|a| a.id.clone());
+        self.view = View::Overview;
+    }
+
+    fn on_teams_key(&mut self, key: KeyEvent) -> bool {
+        let n = self.full.teams().len();
+        if n == 0 {
+            return false;
+        }
+        match key.code {
+            KeyCode::Right | KeyCode::Down | KeyCode::Char('l') | KeyCode::Char('j') => {
+                self.team_cursor = (self.team_cursor + 1) % n;
+            }
+            KeyCode::Left | KeyCode::Up | KeyCode::Char('h') | KeyCode::Char('k') => {
+                self.team_cursor = (self.team_cursor + n - 1) % n;
+            }
+            KeyCode::Enter => {
+                let team = self.full.teams()[self.team_cursor.min(n - 1)].clone();
+                self.open_team(team);
+            }
+            _ => return false,
+        }
+        true
     }
 
     /// Agents in tree order (roots followed by their children).
@@ -348,6 +380,9 @@ impl App {
             self.on_input_key(key);
             return;
         }
+        if self.view == View::Teams && self.on_teams_key(key) {
+            return;
+        }
         match key.code {
             KeyCode::Char(':') => self.input = Some(":".into()),
             KeyCode::Char('>') => self.input = Some(">".into()),
@@ -372,7 +407,16 @@ impl App {
                     self.view = View::AgentDetail;
                 }
             }
-            KeyCode::Esc => self.view = View::Overview,
+            KeyCode::Esc => {
+                if self.view == View::Overview && self.team.is_some() {
+                    // Leave the team: back to everything, on the Teams view.
+                    self.team = None;
+                    self.refilter();
+                    self.view = View::Teams;
+                } else {
+                    self.view = View::Overview;
+                }
+            }
             KeyCode::Char('z') => self.lanes_zoom = (self.lanes_zoom + 1) % LANE_WINDOWS.len(),
             KeyCode::Down | KeyCode::Char('j') => self.move_selection(1),
             KeyCode::Up | KeyCode::Char('k') => self.move_selection(-1),
