@@ -23,6 +23,7 @@ each other**. It brings agents running on different machines into a single scree
 | Repo language | Everything on GitHub is in English: README, docs, code comments, commits, issues, PRs |
 | License | MIT |
 | Repository | `argus` on the maintainer's personal GitHub account |
+| Standalone | Argus always works on the local machine alone — no hub, SSH or network required. Remote hosts are an optional extra |
 | Aesthetic | Dark theme, monospace, ratatui bordered panes, braille lines, no cartoons |
 
 ## Screens (10)
