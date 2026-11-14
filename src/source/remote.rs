@@ -222,7 +222,8 @@ fn sh_c(script: &str) -> String {
 }
 
 /// Shell script run on the remote: downloads the matching release build into
-/// `~/.cache/argus/argus` (this version first, else the latest release).
+/// `~/.cache/argus/argus` (this version first, else the newest release,
+/// pre-releases included).
 pub fn download_script() -> String {
     let version = env!("CARGO_PKG_VERSION");
     format!(
@@ -239,7 +240,7 @@ base=https://github.com/serkankoyun/argus/releases
 tmp=$(mktemp -d)
 v=v{version}
 if ! get "$base/download/$v/argus-$v-$t.tar.gz" > "$tmp/a.tgz" 2>/dev/null; then
-  v=$(get https://api.github.com/repos/serkankoyun/argus/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
+  v=$(get 'https://api.github.com/repos/serkankoyun/argus/releases?per_page=1' | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
   [ -n "$v" ] || {{ echo "no release found"; exit 5; }}
   get "$base/download/$v/argus-$v-$t.tar.gz" > "$tmp/a.tgz"
 fi
