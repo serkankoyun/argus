@@ -337,6 +337,10 @@ pub struct Snapshot {
     /// Orchestrator runs (units of work with stages), newest first.
     #[serde(default)]
     pub runs: Vec<Run>,
+    /// A team's usual roles (readable labels), from team rules; `*` applies
+    /// to every team without its own list.
+    #[serde(default)]
+    pub team_roles: Vec<(String, Vec<String>)>,
 }
 
 /// The pipeline stages of a run, in order.
@@ -470,6 +474,12 @@ pub fn run_id_in(text: &str) -> Option<&str> {
 
 impl Snapshot {
     /// Display name of a team, if one is known.
+    /// The configured roles of a team (its own list, else the `*` list).
+    pub fn roles_of(&self, team: &str) -> Option<&[String]> {
+        let find = |k: &str| self.team_roles.iter().find(|(t, _)| t == k);
+        find(team).or_else(|| find("*")).map(|(_, r)| r.as_slice())
+    }
+
     pub fn team_label(&self, team: &str) -> Option<&str> {
         self.team_labels
             .iter()
@@ -587,6 +597,7 @@ impl Snapshot {
             source: self.source.clone(),
             team_labels: self.team_labels.clone(),
             warnings: self.warnings.clone(),
+            team_roles: self.team_roles.clone(),
             runs: self
                 .runs
                 .iter()

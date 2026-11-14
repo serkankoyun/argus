@@ -13,6 +13,7 @@
 //!   "short_names": true,
 //!   "roles": { "developer": "Developer" },
 //!   "coordinator": "Coordinator",
+//!   "team_roles": { "*": ["lider", "gelistirici", "testci"] },
 //!   "default": "no-team"
 //! }
 //! ```
@@ -57,6 +58,8 @@ pub struct Rules {
     /// the group they are shown in.
     independent_roles: Vec<String>,
     independent: Option<String>,
+    /// Team code (or `*`) -> its usual roles, as role keys.
+    team_roles: Vec<(String, Vec<String>)>,
 }
 
 fn strings(v: Option<&Value>) -> Vec<String> {
@@ -170,7 +173,18 @@ impl Rules {
                     .collect()
             })
             .unwrap_or_default();
+        let team_roles = v
+            .get("team_roles")
+            .and_then(Value::as_object)
+            .map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.clone(), strings(Some(v))))
+                    .filter(|(_, r)| !r.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
         Rules {
+            team_roles,
             independent_roles: strings(v.get("independent_roles")),
             independent: v
                 .get("independent")
@@ -301,6 +315,24 @@ impl Rules {
 
     pub fn apply(&self, snap: &mut Snapshot) {
         snap.team_labels = self.labels.clone();
+        // Role keys ("gelistirici" or "gelistirici-") shown as their labels.
+        snap.team_roles = self
+            .team_roles
+            .iter()
+            .map(|(team, keys)| {
+                let labels = keys
+                    .iter()
+                    .map(|k| {
+                        let k = k.trim_end_matches('-');
+                        self.roles
+                            .iter()
+                            .find(|(r, _)| r == k)
+                            .map_or_else(|| k.to_string(), |(_, l)| l.clone())
+                    })
+                    .collect();
+                (team.clone(), labels)
+            })
+            .collect();
         snap.warnings.extend(
             self.missing
                 .iter()

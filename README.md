@@ -21,7 +21,7 @@ conversation between your agents.
 
 ## Features (planned for v1.0)
 
-- **Teams** — the coordinator on top, one card per busy team with each agent's task and activity, finished teams on one line, cross-team requests; `t` opens it (`Enter` filters every view to the chosen team). Setups with configured teams start on this view
+- **Teams** — the coordinator on top, one card per busy team with its roles (which are at work now) and each agent's task and activity, finished teams on one line, cross-team requests; `t` opens it (`Enter` filters every view to the chosen team). Setups with configured teams start on this view
 - **Ten views, one keystroke apart** — switch instantly with `1`–`0` or `tab`; the selected agent follows you
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long

@@ -178,6 +178,9 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
             Style::new().fg(DIM),
         ),
     ])];
+    if let Some(roles) = role_line(app, team, &members, w) {
+        lines.push(roles);
+    }
     lines.push(Line::styled("─".repeat(w), Style::new().fg(BORDER)));
     let mut listed: Vec<_> = members
         .iter()
@@ -252,6 +255,93 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
+/// The team's usual roles and which of them are at work now:
+/// `Roles  ● Lead  ● Developer ×2  ○ Tester`. The roles come from
+/// `team_roles` in the team rules, else from the roles seen in the team.
+pub fn role_roster(
+    configured: Option<&[String]>,
+    members: &[&crate::model::Agent],
+) -> Vec<(String, AgentState, usize)> {
+    let mut roles: Vec<String> = configured.map(<[String]>::to_vec).unwrap_or_default();
+    if roles.is_empty() {
+        let mut seen: Vec<&crate::model::Agent> = members
+            .iter()
+            .copied()
+            .filter(|a| !a.role.is_empty())
+            .collect();
+        // Leads (members that started other members) first, then by start.
+        let leads = |a: &crate::model::Agent| {
+            !members
+                .iter()
+                .any(|c| c.parent.as_deref() == Some(a.id.as_str()))
+        };
+        seen.sort_by_key(|a| (leads(a), a.started));
+        for a in seen {
+            if !roles.contains(&a.role) {
+                roles.push(a.role.clone());
+            }
+        }
+    }
+    roles
+        .into_iter()
+        .map(|r| {
+            let live: Vec<_> = members
+                .iter()
+                .filter(|a| a.role == r && a.state != AgentState::Done)
+                .collect();
+            let state = if live.iter().any(|a| a.state == AgentState::Working) {
+                AgentState::Working
+            } else if live
+                .iter()
+                .any(|a| matches!(a.state, AgentState::Waiting | AgentState::Stalled))
+            {
+                AgentState::Waiting
+            } else if live.is_empty() {
+                AgentState::Done
+            } else {
+                AgentState::Idle
+            };
+            (r, state, live.len())
+        })
+        .collect()
+}
+
+fn role_line<'a>(
+    app: &App,
+    team: &str,
+    members: &[&crate::model::Agent],
+    w: usize,
+) -> Option<Line<'a>> {
+    let roster = role_roster(app.full.roles_of(team), members);
+    if roster.is_empty() {
+        return None;
+    }
+    let mut spans = vec![Span::styled(
+        format!("{} ", app.i18n.t("teams-roles")),
+        Style::new().fg(DIM),
+    )];
+    let mut used = spans[0].content.chars().count();
+    for (role, state, n) in roster {
+        let (glyph, color) = match state {
+            AgentState::Working => ("●", GREEN),
+            AgentState::Waiting => ("◐", AMBER),
+            AgentState::Idle => ("○", FG),
+            _ => ("○", DIM),
+        };
+        let text = if n > 1 {
+            format!(" {glyph} {role} ×{n}")
+        } else {
+            format!(" {glyph} {role}")
+        };
+        used += text.chars().count();
+        if used > w {
+            break;
+        }
+        spans.push(Span::styled(text, Style::new().fg(color)));
+    }
+    Some(Line::from(spans))
+}
+
 fn draw_cross(frame: &mut Frame, area: Rect, app: &App) {
     let scope = app.host_scope();
     let s = &scope;
@@ -311,4 +401,50 @@ fn draw_cross(frame: &mut Frame, area: Rect, app: &App) {
             .block(pane(i.t("teams-cross"), false)),
         area,
     );
+}
+
+#[cfg(test)]
+mod roster_tests {
+    use super::*;
+    use crate::model::Agent;
+
+    fn ag(role: &str, state: AgentState, started: i64) -> Agent {
+        Agent {
+            role: role.into(),
+            state,
+            started,
+            ..Agent::default()
+        }
+    }
+
+    /// Live kabuk-tasarim card, Nov 14 19:20: the lead waits, its developer
+    /// works on a second round, the tester finished earlier.
+    #[test]
+    fn roster_shows_usual_roles_and_who_is_at_work() {
+        let mut team = [
+            ag("Ekip lideri", AgentState::Waiting, 1),
+            ag("Geliştirici", AgentState::Working, 2),
+            ag("Testçi", AgentState::Done, 3),
+            ag("Geliştirici", AgentState::Done, 0),
+        ];
+        team[0].id = "lead".into();
+        team[1].parent = Some("lead".into());
+        let members: Vec<&Agent> = team.iter().collect();
+        let r = role_roster(None, &members);
+        let short: Vec<(&str, AgentState, usize)> =
+            r.iter().map(|(n, s, c)| (n.as_str(), *s, *c)).collect();
+        assert_eq!(
+            short,
+            vec![
+                ("Ekip lideri", AgentState::Waiting, 1),
+                ("Geliştirici", AgentState::Working, 1),
+                ("Testçi", AgentState::Done, 0),
+            ]
+        );
+        // A configured roster lists roles nobody plays today, in its order.
+        let usual = ["Ekip lideri".to_string(), "Testçi".into(), "QA".into()];
+        let r = role_roster(Some(&usual), &members);
+        assert_eq!(r[2], ("QA".to_string(), AgentState::Done, 0));
+        assert_eq!(r[0].1, AgentState::Waiting);
+    }
 }

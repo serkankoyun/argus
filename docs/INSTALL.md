@@ -258,6 +258,7 @@ the team in agent names (for example `qa-payments-review`), describe it in
   "tasks_file": "/path/to/argus-tasks.json",
   "independent_roles": ["qa-", "security-"],
   "independent": "Independent",
+  "team_roles": { "*": ["lead", "developer", "tester"], "payments": ["developer", "qa"] },
   "default": "no-team"
 }
 ```
@@ -269,6 +270,10 @@ ones, so agents from before a team rename stay with that team. Team display name
 `labels`, or from the field named by `label_key` in `teams_file` objects. With `short_names`,
 grouped agents are shown as `<role> · <work>` (`roles` gives readable role names), and
 `coordinator` names the sessions that start subagents and puts them in a group of their own.
+`team_roles` lists a team's usual roles (role keys; `*` for every team without its own list):
+each Teams card shows them under its counts, `●` working, `◐` waiting, `○` nobody on it now,
+`×2` when two agents hold the role. Without `team_roles` the card lists the roles seen in the
+team in the last 24 hours, leads first.
 `independent_roles` puts agents whose name starts with one of those prefixes (reviewers that work
 across teams) in the `independent` group. `tasks` (or a `tasks_file` holding the same object) sets an agent's task line by its displayed
 name; otherwise the task is the spawn description without a leading run id, the first

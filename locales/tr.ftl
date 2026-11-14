@@ -284,5 +284,6 @@ act-inspect = dosyalara bakıyor
 warn-teams-file = teams_file { $arg } yok: oradaki ekip kodları ve adları kullanılmıyor
 teams-idle = biten ekipler
 teams-coordinator = Koordinatör
+teams-roles = Roller
 now-background = arka plan işini bekliyor: { $what }
 now-children = başlattığı ajanları bekliyor: { $what }
