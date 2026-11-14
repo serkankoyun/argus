@@ -13,6 +13,9 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 - **Every change updates all related docs in the same commit**: `README.md`,
   `docs/INSTALL.md`, `packaging/README.md` (shipped inside release archives),
   `docs/PROJECT_BRIEF.md` (decisions, status, roadmap) and this file when workflows change.
+- **Every problem the maintainer or a user hits is written down** once solved: user-facing
+  fixes in `docs/INSTALL.md` → Troubleshooting (symptom first, then steps), developer lessons
+  in "Lessons learned" below.
 - Keep the classic terminal aesthetic of the design mockups: no emoji, ratatui borders,
   braille/box characters, the shared palette in `src/ui/common.rs`.
 
@@ -34,6 +37,25 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 4. Run the **Packages** workflow (`gh workflow run packages.yml`) to install via Homebrew and
    Scoop and verify the manifests (bot commits do not trigger workflows on their own).
 - Re-attach binaries to an existing release: run the Release workflow manually with `tag`.
+
+## Lessons learned
+- **Windows terminals and glyph widths**: symbols with emoji variants (▶ ◀) or ambiguous width
+  (▰ ▱ ⏎) can be drawn two cells wide and shift ratatui's diffed output ("fields being erased").
+  Use narrow glyphs (► ◄ █ ░, text like `enter`) and keep `terminal.clear()` on view changes.
+- **Windows key events**: crossterm reports press *and* release; act on everything except
+  `KeyEventKind::Release`. Offer alternatives (F-keys, mouse) and `--debug-keys` for diagnosis.
+- **Cross-platform remotes**: a Windows binary cannot be copied to a Linux server. The remote
+  downloads its own build (`download_script` in `src/source/remote.rs`). Non-interactive SSH
+  shells often lack `~/.local/bin` or Homebrew on `PATH`; probe known install paths. Run remote
+  scripts through `sh -c` so fish/zsh login shells do not break them.
+- **GitHub releases API**: `/releases/latest` ignores pre-releases; use `/releases?per_page=1`.
+- **Release packaging**: build archives in `dist/` and upload `dist/*` only; staging folder names
+  contain dots and globbing `argus-*.*` picked them up.
+- **Automation limits**: Claude sessions cannot push tags, create releases or change repo
+  settings; workflows pushed by `GITHUB_TOKEN` do not trigger other workflows.
+- **Package updates**: `scoop update <app>` needs `scoop update` first; quit Argus before
+  updating on Windows.
+- **Name clash**: winget's `argus` packages are unrelated; reserve `SerkanKoyun.Argus`.
 
 ## Layout
 - `src/source/` — data sources: `claude.rs` (live `~/.claude` collector), `demo.rs`

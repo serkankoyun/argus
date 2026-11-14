@@ -86,7 +86,9 @@ All ten views plus the Teams view are implemented and recorded from the demo in
 `--resume` messages and the PermissionRequest approval hook are done and covered by
 end-to-end tests in CI (fixtures, SSH loopback, hook round trip).
 
-v0.1.0 is published (pre-release) with binaries, Homebrew and Scoop packages.
+v0.1.1 is published (pre-release) with binaries, Homebrew and Scoop packages; it adds
+cross-platform remote installs (Windows → Linux), mouse/F-key view switching and Windows
+rendering fixes found while the maintainer tested on Windows.
 
 Next: replay/scrubbing of past sessions, per-team budgets and metrics, winget, config file for hosts,
 richer Agent Teams support (task files, teammate names) once verified on real data.

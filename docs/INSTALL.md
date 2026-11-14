@@ -314,11 +314,25 @@ certain symbols two cells wide. Since v0.1.1 Argus avoids those symbols and repa
 screen on every view change; update if you see this. Using Cascadia Mono or JetBrains Mono
 in Windows Terminal also helps.
 
-**`argus --version` still shows the old version after updating** — Refresh the package
-lists first (`scoop update` / `brew update`), then update Argus. If it is still old, another
-copy comes first on your `PATH`: `where.exe argus` (Windows) or `which -a argus` lists them;
-remove the one you installed manually. Remote copies in `~/.cache/argus/` are only used on
-servers and do not affect your local version.
+**`argus --version` still shows the old version after updating** — Work through these in
+order:
+
+1. Quit every running Argus (`q`). On Windows a running program cannot be replaced, and the
+   update can fail quietly.
+2. Refresh the package lists, then update:
+   `scoop update` then `scoop update argus` (Windows), or
+   `brew update && brew upgrade argus` (macOS/Linux).
+3. Check that only one copy is on your `PATH`: `where.exe argus` (Windows) or
+   `which -a argus`. With Scoop the only line should end in `scoop\shims\argus.exe`;
+   remove any copy you installed manually.
+4. Still old? Re-add the source and update again:
+   `scoop bucket rm argus`, `scoop bucket add argus https://github.com/serkankoyun/argus`,
+   `scoop update argus` — or reinstall: `scoop uninstall argus`, `scoop cache rm argus`,
+   `scoop install argus/argus`. (Homebrew: `brew untap serkankoyun/argus`, then tap and
+   install again.)
+
+Remote copies in `~/.cache/argus/` are only used on servers and do not affect your local
+version.
 
 **Number keys do not switch views** — Use `F1`–`F10`, `Tab` / `Shift+Tab`, or click the
 tabs with the mouse. Start Argus with `argus --debug-keys` to see which key it receives
