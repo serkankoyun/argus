@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Set up Homebrew
         if: runner.os == 'Linux'
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
       - name: Install from the tap
         run: |
           brew tap serkankoyun/argus https://github.com/serkankoyun/argus
