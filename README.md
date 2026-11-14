@@ -57,6 +57,9 @@ conversation between your agents.
 
 ## Install
 
+**Full guide: [docs/INSTALL.md](docs/INSTALL.md)** — per-platform steps, first run,
+approvals, remote machines, troubleshooting and uninstalling.
+
 Download a binary for macOS, Linux or Windows from the
 [latest release](https://github.com/serkankoyun/argus/releases), or build from source
 with a recent stable Rust toolchain:
