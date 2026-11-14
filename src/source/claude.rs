@@ -914,6 +914,15 @@ pub fn build_snapshot<'a>(
         }
     }
     disambiguate_names(&mut snap, &sessions);
+    // Top-level sessions that started subagents coordinate them.
+    let parents: std::collections::HashSet<String> = snap
+        .agents
+        .iter()
+        .filter_map(|a| a.parent.clone())
+        .collect();
+    for a in snap.agents.iter_mut() {
+        a.coordinator = a.parent.is_none() && parents.contains(&a.id);
+    }
     // A task is answered once its agent finished, even without a returned
     // result (background agents hand back later, outside the spawn call).
     for m in snap

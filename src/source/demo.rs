@@ -393,6 +393,7 @@ impl Source for DemoSource {
                 git_branch: "feat/auth-refactor".into(),
                 files,
                 transcript,
+                coordinator: a.id == "lead",
                 ..Agent::default()
             });
         }
