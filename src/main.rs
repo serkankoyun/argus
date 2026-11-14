@@ -55,6 +55,15 @@ struct Cli {
 enum Cmd {
     /// Stream this machine's snapshots as JSON lines (used over SSH by `--host`).
     Collect,
+    /// Claude Code PermissionRequest hook: lets Argus approve tool calls.
+    Hook {
+        /// Add the hook to the Claude settings.json instead of running it.
+        #[arg(long)]
+        install: bool,
+        /// Seconds to wait for a decision before falling back to the normal prompt.
+        #[arg(long, default_value_t = 120, env = "ARGUS_HOOK_WAIT")]
+        wait: u64,
+    },
     /// Print one snapshot as JSON and exit (for scripts and tests).
     Snapshot {
         /// Seconds to keep polling before printing (lets remote hosts connect).
@@ -72,8 +81,23 @@ fn main() -> Result<()> {
         .claude_dir
         .clone()
         .unwrap_or_else(source::claude::default_dir);
-    if let Some(Cmd::Collect) = cli.command {
-        return source::remote::collect(Box::new(ClaudeSource::new(claude_dir)), POLL);
+    match cli.command {
+        Some(Cmd::Collect) => {
+            return source::remote::collect(Box::new(ClaudeSource::new(claude_dir)), POLL)
+        }
+        Some(Cmd::Hook {
+            install: true,
+            wait,
+        }) => {
+            let path = source::hook::install(&claude_dir, wait)?;
+            println!("Argus approval hook added to {}", path.display());
+            return Ok(());
+        }
+        Some(Cmd::Hook {
+            install: false,
+            wait,
+        }) => return source::hook::run(&claude_dir, Duration::from_secs(wait)),
+        _ => {}
     }
     let i18n = I18n::new(cli.lang.as_deref());
     let source: Box<dyn Source> = if cli.demo {
@@ -86,17 +110,14 @@ fn main() -> Result<()> {
         for h in &cli.hosts {
             sources.push(Box::new(RemoteSource::new(h.clone())));
         }
-        if sources.len() == 1 {
-            sources.remove(0)
-        } else {
-            Box::new(MultiSource::new(sources))
-        }
+        // Always multi, so hosts can be added at runtime with `:connect`.
+        Box::new(MultiSource::new(sources))
     };
     if let Some(Cmd::Snapshot { wait }) = cli.command {
         return print_snapshot(source, wait);
     }
-    let rx = source::spawn(source, POLL);
-    let mut app = App::new(i18n, rx, cli.demo);
+    let channels = source::spawn(source, POLL);
+    let mut app = App::new(i18n, channels, cli.demo);
 
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut app);

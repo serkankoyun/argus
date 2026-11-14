@@ -66,3 +66,21 @@ jobs:
           jq -e '.hosts[0].connected == true' remote.json
           jq -e '.agents | length == 2' remote.json
           test -x ~/.cache/argus/argus
+      - name: Approval hook round trip
+        run: |
+          mkdir -p /tmp/cc && cp -r tests/fixtures/claude/projects /tmp/cc/
+          echo '{"session_id":"sess-1","cwd":"/home/me/shop","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"rm -rf build"}}' \
+            | ./target/release/argus --claude-dir /tmp/cc hook --wait 20 > hook.out &
+          sleep 2
+          ./target/release/argus --claude-dir /tmp/cc snapshot --wait 0 > s.json
+          jq -e '[.messages[] | select(.kind == "Perm" and .request != null)] | length == 1' s.json
+          jq -e '[.agents[] | select(.id == "sess-1" and .state == "Waiting")] | length == 1' s.json
+          ID=$(jq -r '[.messages[] | select(.kind == "Perm")][0].request' s.json)
+          mkdir -p /tmp/cc/argus/decisions
+          echo '{"allow":true}' > "/tmp/cc/argus/decisions/$ID.json"
+          wait
+          cat hook.out
+          jq -e '.hookSpecificOutput.hookEventName == "PermissionRequest" and .hookSpecificOutput.decision.behavior == "allow"' hook.out
+          ./target/release/argus --claude-dir /tmp/cc hook --install
+          ./target/release/argus --claude-dir /tmp/cc hook --install
+          jq -e '.hooks.PermissionRequest | length == 1' /tmp/cc/settings.json

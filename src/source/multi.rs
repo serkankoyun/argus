@@ -1,6 +1,7 @@
 //! Combines several sources (local + remote hosts) into one snapshot.
 
-use super::Source;
+use super::remote::RemoteSource;
+use super::{Control, Notice, Source};
 use crate::model::*;
 
 pub struct MultiSource {
@@ -44,5 +45,38 @@ impl Source for MultiSource {
         out.metrics = self.metrics.clone();
         out.source = sources.join(" + ");
         out
+    }
+
+    fn owns(&self, agent: &str) -> bool {
+        self.sources.iter().any(|s| s.owns(agent))
+    }
+
+    fn control(&mut self, c: &Control) -> Notice {
+        match c {
+            Control::AddHost(target) => {
+                self.sources
+                    .push(Box::new(RemoteSource::new(target.clone())));
+                Ok(format!("connecting to {target}"))
+            }
+            Control::Decide { agent, .. } | Control::Resume { agent, .. } => {
+                match self.sources.iter_mut().find(|s| s.owns(agent)) {
+                    Some(s) => s.control(c),
+                    None => Err("unknown agent".into()),
+                }
+            }
+            Control::Run { host, .. } => {
+                let target = match host {
+                    None => self.sources.first_mut(),
+                    Some(h) => self
+                        .sources
+                        .iter_mut()
+                        .find(|s| s.host().as_deref() == Some(h.as_str())),
+                };
+                match target {
+                    Some(s) => s.control(c),
+                    None => Err("unknown host".into()),
+                }
+            }
+        }
     }
 }

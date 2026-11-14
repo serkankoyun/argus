@@ -94,6 +94,9 @@ pub struct Agent {
     pub name: String,
     pub host: String,
     pub project: String,
+    /// Working directory of the session.
+    #[serde(default)]
+    pub cwd: String,
     pub model: String,
     /// Id of the parent agent, if this is a subagent / teammate.
     pub parent: Option<String>,
@@ -186,6 +189,9 @@ pub struct Message {
     pub text: String,
     /// Set when the message has been answered / completed.
     pub answered_at: Option<Millis>,
+    /// For approvals raised by `argus hook`: the request id to answer.
+    #[serde(default)]
+    pub request: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -323,6 +329,7 @@ mod tests {
             name: id.into(),
             host: "local".into(),
             project: String::new(),
+            cwd: String::new(),
             model: String::new(),
             parent: parent.map(Into::into),
             team: None,

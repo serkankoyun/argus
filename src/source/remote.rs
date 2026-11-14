@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use super::Source;
+use super::{actions, Control, Notice, Source};
 use crate::model::*;
 
 /// Wire format version of the collect protocol.
@@ -255,6 +255,74 @@ impl Source for RemoteSource {
             h.region = region.clone();
         }
         snap
+    }
+
+    fn owns(&self, agent: &str) -> bool {
+        self.shared
+            .lock()
+            .ok()
+            .and_then(|g| g.latest.as_ref().map(|s| s.agent(agent).is_some()))
+            .unwrap_or(false)
+    }
+
+    fn host(&self) -> Option<String> {
+        let name = self.shared.lock().ok().and_then(|g| {
+            g.latest
+                .as_ref()
+                .and_then(|s| s.hosts.first().map(|h| h.name.clone()))
+        });
+        Some(name.unwrap_or_else(|| self.target.clone()))
+    }
+
+    fn control(&mut self, c: &Control) -> Notice {
+        match c {
+            Control::Decide { request, allow, .. } => {
+                let body = serde_json::json!({ "allow": allow, "message": if *allow { "" } else { "Rejected in Argus" } }).to_string();
+                let script = format!(
+                    "mkdir -p ~/.claude/argus/decisions && cat > ~/.claude/argus/decisions/{}.json",
+                    actions::sh_quote(request).trim_matches('\'')
+                );
+                let mut child = ssh(&self.target)
+                    .arg(script)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::null())
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+                child
+                    .stdin
+                    .take()
+                    .ok_or("no stdin")?
+                    .write_all(body.as_bytes())
+                    .map_err(|e| e.to_string())?;
+                let ok = child.wait().map_err(|e| e.to_string())?.success();
+                if ok {
+                    Ok(format!(
+                        "{} on {}",
+                        if *allow { "approved" } else { "rejected" },
+                        self.target
+                    ))
+                } else {
+                    Err("could not deliver the decision over ssh".into())
+                }
+            }
+            Control::Run { dir, prompt, .. } => {
+                actions::run_remote(&self.target, dir, &["-p", prompt])
+            }
+            Control::Resume { agent, text } => {
+                let cwd = self.shared.lock().ok().and_then(|g| {
+                    g.latest
+                        .as_ref()
+                        .and_then(|s| s.agent(agent).map(|a| a.cwd.clone()))
+                });
+                match cwd {
+                    Some(cwd) => {
+                        actions::run_remote(&self.target, &cwd, &["-p", "--resume", agent, text])
+                    }
+                    None => Err("unknown agent".into()),
+                }
+            }
+            Control::AddHost(_) => Err("not supported by this data source".into()),
+        }
     }
 }
 

@@ -2,7 +2,7 @@
 //! Used by `argus --demo`, for screenshots, and whenever no real data exists.
 
 use super::pricing;
-use super::Source;
+use super::{Control, Notice, Source};
 use crate::model::*;
 
 const PERIOD: i64 = 48_000;
@@ -207,6 +207,8 @@ pub struct DemoSource {
     start: Millis,
     lang: usize,
     metrics: Metrics,
+    /// Loop index of approvals already answered in the demo.
+    answered: Vec<i64>,
 }
 
 impl DemoSource {
@@ -282,7 +284,12 @@ impl Source for DemoSource {
                         kind: s.kind,
                         label: s.label[l].into(),
                         text: s.text[l].into(),
-                        answered_at: (s.kind != MsgKind::Perm).then_some(ts + 3_000),
+                        answered_at: if s.kind == MsgKind::Perm {
+                            self.answered.contains(&k).then_some(now)
+                        } else {
+                            Some(ts + 3_000)
+                        },
+                        request: (s.kind == MsgKind::Perm).then(|| format!("demo-{k}")),
                     });
                 }
             }
@@ -353,6 +360,7 @@ impl Source for DemoSource {
                 name: a.id.into(),
                 host: a.host.into(),
                 project: "shop".into(),
+                cwd: "/srv/shop".into(),
                 model: a.model.into(),
                 parent: a.parent.map(Into::into),
                 team: Some("auth-refactor".into()),
@@ -449,6 +457,29 @@ impl Source for DemoSource {
         push_metrics(&mut self.metrics, el);
         snap.metrics = self.metrics.clone();
         snap
+    }
+
+    fn owns(&self, agent: &str) -> bool {
+        AGENTS.iter().any(|a| a.id == agent)
+    }
+
+    fn control(&mut self, c: &Control) -> Notice {
+        match c {
+            Control::Decide { request, allow, .. } => {
+                if let Some(k) = request.strip_prefix("demo-").and_then(|k| k.parse().ok()) {
+                    self.answered.push(k);
+                }
+                Ok(format!(
+                    "demo: {}",
+                    if *allow { "approved" } else { "rejected" }
+                ))
+            }
+            Control::Run { prompt, .. } => Ok(format!("demo: would run claude -p \"{prompt}\"")),
+            Control::Resume { agent, text } => {
+                Ok(format!("demo: would send \"{text}\" to {agent}"))
+            }
+            Control::AddHost(h) => Ok(format!("demo: would connect to {h}")),
+        }
     }
 }
 

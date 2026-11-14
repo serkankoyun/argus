@@ -130,22 +130,69 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
+    if let Some(buf) = &app.input {
+        let cursor = if (app.frame / 8) % 2 == 0 { "▌" } else { " " };
+        let hint = if buf.starts_with('>') {
+            app.i18n.t("input-prompt-hint")
+        } else {
+            app.i18n.t("input-cmd-hint")
+        };
+        let line = Line::from(vec![
+            Span::styled(
+                buf.clone(),
+                Style::new().fg(FG).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(cursor, Style::new().fg(GREEN)),
+            Span::styled(format!("   {hint}"), Style::new().fg(DIM)),
+        ]);
+        frame.render_widget(Paragraph::new(line), area);
+        return;
+    }
     let key =
         |k: &'static str| Span::styled(format!(" {k} "), Style::new().bg(BORDER).fg(Color::White));
     let label = |id: &str| Span::styled(format!(" {}  ", app.i18n.t(id)), Style::new().fg(DIM));
-    let line = Line::from(vec![
+    let mut spans = vec![
         key("1-0"),
         label("key-views"),
-        key("tab"),
-        label("key-next"),
         key("↑↓"),
         label("key-select"),
         key("⏎"),
         label("key-detail"),
+    ];
+    if app.pending_approval().is_some() {
+        spans.extend([
+            key("a"),
+            Span::styled(
+                format!(" {}  ", app.i18n.t("key-approve")),
+                Style::new().fg(AMBER),
+            ),
+            key("r"),
+            label("key-reject"),
+        ]);
+    }
+    spans.extend([
+        key(":"),
+        label("key-cmd"),
+        key(">"),
+        label("key-prompt"),
         key("space"),
         label("key-pause"),
         key("q"),
         label("key-quit"),
     ]);
-    frame.render_widget(Paragraph::new(line), area);
+    let [left, right] =
+        Layout::horizontal([Constraint::Min(0), Constraint::Length(48)]).areas(area);
+    frame.render_widget(Paragraph::new(Line::from(spans)), left);
+    if let Some((at, n)) = &app.flash {
+        if app.now - at < 5_000 {
+            let (text, color) = match n {
+                Ok(t) => (format!("✓ {t}"), GREEN),
+                Err(e) => (format!("✗ {e}"), RED),
+            };
+            frame.render_widget(
+                Paragraph::new(Line::styled(text, Style::new().fg(color))).right_aligned(),
+                right,
+            );
+        }
+    }
 }

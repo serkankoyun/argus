@@ -180,7 +180,7 @@ info-hosts = hosts
 info-agents = agents
 info-messages = messages
 info-cost = cost (est.)
-info-connect = Add machines with: argus --host user@server
+info-connect = Add machines: press : then type connect user@server
 cost-by-agent = { $host } · cost by agent
 
 ## Channel
@@ -189,7 +189,7 @@ chan-approvals = approvals
 chan-direct = direct messages
 chan-hosts = hosts
 chan-perm = { $who } NEEDS APPROVAL → you: { $what }   [a] approve  [r] reject
-chan-input-hint = /msg <agent> · /approve · /stop  (v0.4)
+chan-input-hint = :msg <text> · a approve · > new run
 pane-members = Members · now
 
 ## Task map
@@ -208,3 +208,13 @@ pair-quiet = No message in flight.
 pair-history = earlier messages
 pair-channel = Channel between them
 pair-others = Everyone else, now
+
+## Commands
+key-approve = approve
+key-reject = reject
+key-cmd = command
+key-prompt = new run
+input-cmd-hint = :connect user@host · :msg <text> · :run <dir> <prompt> · :view <name> · :lang tr · esc
+input-prompt-hint = prompt for a new Claude Code run in the selected agent's project · enter to start
+no-approvals = no pending approvals
+unknown-cmd = unknown command: { $cmd }

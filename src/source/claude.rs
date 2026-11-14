@@ -18,7 +18,7 @@ use serde_json::Value;
 
 use super::pricing;
 use super::system::SystemProbe;
-use super::Source;
+use super::{actions, hook, Control, Notice, Source};
 use crate::model::*;
 
 /// Sessions untouched for longer than this are ignored.
@@ -44,6 +44,7 @@ pub struct ClaudeSource {
     probe: SystemProbe,
     metrics: Metrics,
     last_poll: Option<(Millis, u64, f64)>,
+    host_name: String,
 }
 
 impl ClaudeSource {
@@ -54,6 +55,7 @@ impl ClaudeSource {
             probe: SystemProbe::new(),
             metrics: Metrics::default(),
             last_poll: None,
+            host_name: String::new(),
         }
     }
 
@@ -114,6 +116,8 @@ impl Source for ClaudeSource {
             now,
         );
         merge_teams(&self.root, &mut snap);
+        apply_requests(&mut snap, &hook::pending(&self.root));
+        self.host_name = host.name.clone();
         snap.tasks = read_tasks(&self.root);
         snap.hosts = vec![Host {
             name: host.name.clone(),
@@ -129,6 +133,67 @@ impl Source for ClaudeSource {
         snap.taken_at = now;
         snap
     }
+
+    fn owns(&self, agent: &str) -> bool {
+        self.files.values().any(|t| t.session.id == agent)
+    }
+
+    fn host(&self) -> Option<String> {
+        Some(self.host_name.clone())
+    }
+
+    fn control(&mut self, c: &Control) -> Notice {
+        match c {
+            Control::Decide { request, allow, .. } => hook::decide(&self.root, request, *allow)
+                .map(|_| {
+                    if *allow {
+                        "approved".to_string()
+                    } else {
+                        "rejected".to_string()
+                    }
+                })
+                .map_err(|e| e.to_string()),
+            Control::Run { dir, prompt, .. } => actions::run_local(dir, &["-p", prompt]),
+            Control::Resume { agent, text } => {
+                let Some(t) = self.files.values().find(|t| &t.session.id == agent) else {
+                    return Err("unknown agent".into());
+                };
+                if t.session.parent.is_some() {
+                    return Err("subagents cannot be resumed; message their parent".into());
+                }
+                let cwd = t.session.cwd.clone();
+                actions::run_local(&cwd, &["-p", "--resume", agent, text])
+            }
+            Control::AddHost(_) => Err("not supported by this data source".into()),
+        }
+    }
+}
+
+/// Replaces heuristic approval guesses with real `argus hook` requests.
+pub fn apply_requests(snap: &mut Snapshot, pending: &[hook::Request]) {
+    if pending.is_empty() {
+        return;
+    }
+    snap.messages
+        .retain(|m| !(m.kind == MsgKind::Perm && pending.iter().any(|r| r.session_id == m.from)));
+    for r in pending {
+        if let Some(a) = snap.agents.iter_mut().find(|a| a.id == r.session_id) {
+            a.state = AgentState::Waiting;
+            a.tool = r.tool.clone();
+            a.now = r.target.clone();
+        }
+        snap.messages.push(Message {
+            ts: r.ts,
+            from: r.session_id.clone(),
+            to: YOU.into(),
+            kind: MsgKind::Perm,
+            label: short(&format!("{} {}", r.tool, r.target), 40),
+            text: format!("{} {}", r.tool, r.target),
+            answered_at: None,
+            request: Some(r.id.clone()),
+        });
+    }
+    snap.messages.sort_by_key(|m| m.ts);
 }
 
 /// Incrementally read transcript file.
@@ -642,6 +707,7 @@ pub fn build_snapshot<'a>(
             name: agent_name(s, &sessions),
             host: host.to_string(),
             project: project_name(s),
+            cwd: s.cwd.clone(),
             model: s.model.clone(),
             parent: s.parent.clone(),
             team: s.team.clone(),
@@ -682,6 +748,7 @@ pub fn build_snapshot<'a>(
                 label: short(&sp.description, 40),
                 text: short(&sp.prompt, 600),
                 answered_at: sp.result.as_ref().map(|r| r.0),
+                request: None,
             });
             if let Some((rts, text)) = &sp.result {
                 snap.messages.push(Message {
@@ -692,6 +759,7 @@ pub fn build_snapshot<'a>(
                     label: short(&first_line(text), 40),
                     text: short(text, 600),
                     answered_at: None,
+                    request: None,
                 });
             }
         }
@@ -714,6 +782,7 @@ pub fn build_snapshot<'a>(
                 label,
                 text: short(&m.text, 600),
                 answered_at: None,
+                request: None,
             });
         }
         let alive = live_cwds.iter().any(|c| Path::new(&s.cwd) == c.as_path());
@@ -727,6 +796,7 @@ pub fn build_snapshot<'a>(
                     label: short(&format!("{} {}", p.name, p.target), 40),
                     text: format!("{} {}", p.name, p.target),
                     answered_at: None,
+                    request: None,
                 });
             }
         }
@@ -880,6 +950,7 @@ fn merge_teams(root: &Path, snap: &mut Snapshot) {
                     label: short(if summary.is_empty() { &body } else { &summary }, 40),
                     text: short(&body, 600),
                     answered_at: None,
+                    request: None,
                 };
                 let dup = snap
                     .messages

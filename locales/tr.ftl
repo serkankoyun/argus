@@ -178,7 +178,7 @@ info-hosts = sunucu
 info-agents = ajan
 info-messages = mesaj
 info-cost = maliyet (tahmini)
-info-connect = Makine eklemek için: argus --host kullanici@sunucu
+info-connect = Makine eklemek için: : tuşuna bas, bağlan kullanıcı@sunucu yaz
 cost-by-agent = { $host } · ajan bazında maliyet
 
 ## Channel
@@ -187,7 +187,7 @@ chan-approvals = onaylar
 chan-direct = özel mesajlar
 chan-hosts = sunucular
 chan-perm = { $who } ONAY İSTİYOR → sen: { $what }   [a] onayla  [r] reddet
-chan-input-hint = /mesaj <ajan> · /onayla · /durdur  (v0.4)
+chan-input-hint = :mesaj <metin> · a onayla · > yeni iş
 pane-members = Kişiler · şu an
 
 ## Task map
@@ -206,3 +206,13 @@ pair-quiet = Şu an yolda mesaj yok.
 pair-history = önceki mesajlar
 pair-channel = Aralarındaki kanal
 pair-others = Diğerleri şu an
+
+## Commands
+key-approve = onayla
+key-reject = reddet
+key-cmd = komut
+key-prompt = yeni iş
+input-cmd-hint = :bağlan kullanıcı@sunucu · :mesaj <metin> · :çalıştır <klasör> <istem> · :görünüm <ad> · :dil en · esc
+input-prompt-hint = seçili ajanın projesinde yeni bir Claude Code işi için istem · başlatmak için enter
+no-approvals = bekleyen onay yok
+unknown-cmd = bilinmeyen komut: { $cmd }
