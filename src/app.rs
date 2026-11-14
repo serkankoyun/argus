@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::i18n::I18n;
-use crate::model::{now_millis, Agent, Message, Millis, MsgKind, Snapshot};
+use crate::model::{now_millis, Agent, AgentState, Message, Millis, MsgKind, Snapshot};
 use crate::source::{Channels, Control, Notice};
 
 /// Every screen Argus can show. The order matches the number keys `1`–`0`.
@@ -153,7 +153,13 @@ impl App {
             latest = Some(s);
         }
         if let Some(s) = latest {
+            // Setups with configured teams or a coordinator start on the Teams view.
+            let first = self.full.taken_at == 0;
+            let teams_set_up = !s.team_labels.is_empty() || s.agents.iter().any(|a| a.coordinator);
             self.full = s;
+            if first && teams_set_up && self.view == View::Overview {
+                self.view = View::Teams;
+            }
             self.refilter();
             let valid = self
                 .selected
@@ -270,7 +276,7 @@ impl App {
     /// Mouse wheel: moves the selection (or the team cursor on the Teams view).
     pub fn scroll(&mut self, delta: isize) {
         if self.view == View::Teams {
-            let n = self.full.teams().len().max(1);
+            let n = self.team_order().len().max(1);
             self.team_cursor = (self.team_cursor as isize + delta).rem_euclid(n as isize) as usize;
         } else {
             self.move_selection(delta);
@@ -285,6 +291,34 @@ impl App {
         self.view = View::Overview;
     }
 
+    /// Teams as the Teams view lists them: busiest first, then teams whose
+    /// agents all finished; groups made only of coordinators are left out.
+    pub fn team_order(&self) -> Vec<String> {
+        let scope = self.host_scope();
+        let mut teams: Vec<(String, usize, Millis)> = scope
+            .teams()
+            .into_iter()
+            .filter_map(|t| {
+                let members: Vec<_> = scope
+                    .agents
+                    .iter()
+                    .filter(|a| a.team_key() == t && !a.coordinator)
+                    .collect();
+                if members.is_empty() {
+                    return None;
+                }
+                let live = members
+                    .iter()
+                    .filter(|a| a.state != AgentState::Done)
+                    .count();
+                let last = members.iter().map(|a| a.last_activity).max().unwrap_or(0);
+                Some((t, live, last))
+            })
+            .collect();
+        teams.sort_by(|a, b| b.1.cmp(&a.1).then(b.2.cmp(&a.2)));
+        teams.into_iter().map(|(t, _, _)| t).collect()
+    }
+
     /// Everything on the chosen host (all hosts when none is chosen), whatever
     /// the team filter: what the Teams view shows.
     pub fn host_scope(&self) -> Snapshot {
@@ -295,7 +329,7 @@ impl App {
     }
 
     fn on_teams_key(&mut self, key: KeyEvent) -> bool {
-        let teams = self.host_scope().teams();
+        let teams = self.team_order();
         let n = teams.len();
         if n == 0 {
             return false;

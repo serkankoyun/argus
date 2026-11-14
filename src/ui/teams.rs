@@ -1,5 +1,6 @@
-//! Teams view: every team (Agent Teams team, or project) as a card, plus the
-//! requests that cross team boundaries. `t` filters all views to one team.
+//! Teams view: a tree with the coordinator on top, busy teams with their
+//! agents (task and activity per agent) below, finished teams collapsed to one
+//! line each, and the requests that cross team boundaries.
 
 use std::collections::HashMap;
 
@@ -11,7 +12,7 @@ use ratatui::Frame;
 
 use super::common::*;
 use crate::app::App;
-use crate::model::{AgentState, MsgKind, Snapshot, TaskStatus, YOU};
+use crate::model::{AgentState, MsgKind, Snapshot};
 
 /// Team key of an agent id in the full snapshot (`None` for the human).
 fn team_of(s: &Snapshot, id: &str) -> Option<String> {
@@ -21,208 +22,151 @@ fn team_of(s: &Snapshot, id: &str) -> Option<String> {
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let scope = app.host_scope();
     let s = &scope;
-    let teams = s.teams();
-    let cross_h = 9;
-    let [cards, cross] =
-        Layout::vertical([Constraint::Min(8), Constraint::Length(cross_h)]).areas(area);
-    if teams.is_empty() {
+    let i = &app.i18n;
+    let order = app.team_order();
+    let cross_h = 8.min(area.height / 3);
+    let [tree, cross] =
+        Layout::vertical([Constraint::Min(6), Constraint::Length(cross_h)]).areas(area);
+    if order.is_empty() && !s.agents.iter().any(|a| a.coordinator) {
         frame.render_widget(
-            Paragraph::new(Line::styled(app.i18n.t("flow-empty"), Style::new().fg(DIM)))
-                .block(pane(app.i18n.t("view-teams"), true)),
+            Paragraph::new(Line::styled(i.t("flow-empty"), Style::new().fg(DIM)))
+                .block(pane(i.t("view-teams"), true)),
             area,
         );
         return;
     }
-    let per_row = if cards.width >= 150 {
-        3
-    } else if cards.width >= 90 {
-        2
-    } else {
-        1
-    };
-    let rows = teams.len().div_ceil(per_row);
-    let row_areas = Layout::vertical(vec![Constraint::Fill(1); rows]).split(cards);
-    for (r, chunk) in teams.chunks(per_row).enumerate() {
-        let mut cons = vec![Constraint::Fill(1); chunk.len()];
-        cons.resize(per_row, Constraint::Fill(1));
-        let cols = Layout::horizontal(cons).split(row_areas[r]);
-        for (c, team) in chunk.iter().enumerate() {
-            let idx = r * per_row + c;
-            draw_card(
-                frame,
-                cols[c],
-                app,
-                team,
-                idx == app.team_cursor % teams.len(),
-            );
-        }
-    }
-    draw_cross(frame, cross, app);
-}
-
-fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool) {
-    let scope = app.host_scope();
-    let s = &scope;
-    let i = &app.i18n;
-    let mut members: Vec<_> = s.agents.iter().filter(|a| a.team_key() == team).collect();
-    // Live members first, then the most recently finished.
-    members.sort_by_key(|a| {
-        (
-            a.state == AgentState::Done,
-            std::cmp::Reverse(a.last_activity),
-        )
-    });
-    let count = |st: AgentState| members.iter().filter(|a| a.state == st).count();
-    let ids: Vec<&str> = members.iter().map(|a| a.id.as_str()).collect();
-    let window = 15 * 60_000;
-    let recent = s.messages.iter().filter(|m| app.now - m.ts < window);
-    let (mut inner, mut out, mut inbound) = (0, 0, 0);
-    for m in recent {
-        let (f, t) = (ids.contains(&m.from.as_str()), ids.contains(&m.to.as_str()));
-        match (f, t) {
-            (true, true) => inner += 1,
-            (true, false) if m.to != YOU => out += 1,
-            (false, true) => inbound += 1,
-            _ => {}
-        }
-    }
-    let approvals = s
-        .messages
-        .iter()
-        .filter(|m| {
-            m.kind == MsgKind::Perm && m.answered_at.is_none() && ids.contains(&m.from.as_str())
-        })
-        .count();
-    let names: Vec<&str> = members.iter().map(|a| a.name.as_str()).collect();
-    let open_tasks = s
-        .tasks
-        .iter()
-        .filter(|t| {
-            t.status != TaskStatus::Done
-                && t.owner
-                    .as_deref()
-                    .is_some_and(|o| ids.contains(&o) || names.contains(&o))
-        })
-        .count();
-    let cost: f64 = members.iter().map(|a| a.cost_usd).sum();
-    let tokens_sum: u64 = members.iter().map(|a| a.tokens()).sum();
-    let mut hosts: Vec<&str> = members.iter().map(|a| a.host.as_str()).collect();
-    hosts.sort();
-    hosts.dedup();
-
-    let selected = app.team.as_deref() == Some(team);
-    let mut lines = vec![
-        Line::from(vec![
-            Span::styled(format!("{} ", members.len()), bold().fg(FG)),
-            Span::styled(format!("{}  ", i.t("teams-agents")), Style::new().fg(DIM)),
-            Span::styled(
-                format!("● {} ", count(AgentState::Working)),
-                Style::new().fg(GREEN),
-            ),
-            Span::styled(
-                format!("◐ {} ", count(AgentState::Waiting)),
-                Style::new().fg(AMBER),
-            ),
-            Span::styled(
-                format!("✗ {} ", count(AgentState::Stalled)),
-                Style::new().fg(RED),
-            ),
-            Span::styled(
-                format!("✓ {}", count(AgentState::Done)),
-                Style::new().fg(ACCENT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled(format!("${cost:.2}  "), bold().fg(FG)),
-            Span::styled(
-                format!("{} tok  ", tokens(tokens_sum)),
-                Style::new().fg(DIM),
-            ),
-            Span::styled(
-                i.t_args("teams-tasks", &[("n", open_tasks.to_string().as_str())]),
-                Style::new().fg(ACCENT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled(format!("{} ", i.t("teams-msgs")), Style::new().fg(DIM)),
-            Span::styled(format!("⇄ {inner}  "), Style::new().fg(CYAN)),
-            Span::styled(format!("→ {out}  "), Style::new().fg(PURPLE)),
-            Span::styled(format!("← {inbound}"), Style::new().fg(PURPLE)),
-            if approvals > 0 {
-                Span::styled(
-                    format!(
-                        "   ▲ {}",
-                        i.t_args(
-                            "approvals-pending",
-                            &[("n", approvals.to_string().as_str())]
-                        )
-                    ),
-                    Style::new().fg(AMBER),
-                )
-            } else {
-                Span::raw("")
-            },
-        ]),
-        Line::styled(
-            "─".repeat(area.width.saturating_sub(2) as usize),
-            Style::new().fg(BORDER),
-        ),
-    ];
-    let room = area.height.saturating_sub(6) as usize;
-    // Names usually repeat the team ("qa-karar-kural-liste-alimi" in karar-kural):
-    // drop it inside the card and give the name more room.
-    let name_w = (area.width as usize / 2).clamp(12, 34);
-    // Finished members only count; they are listed when `f` shows finished agents.
-    let listed: Vec<_> = members
-        .iter()
-        .filter(|a| app.show_finished || a.state != AgentState::Done)
-        .collect();
-    for a in listed.iter().take(room) {
-        let short_name = compact_name(&a.name, team);
+    let width = tree.width.saturating_sub(4) as usize;
+    let name_w = (width / 4).clamp(14, 34);
+    let task_w = (width * 2 / 5).clamp(10, 70);
+    let act_w = width.saturating_sub(name_w + task_w + 8);
+    let member = |a: &crate::model::Agent, lead: &str| -> Line<'static> {
         let c = pulse_color(app, a.state);
-        let spin = if a.state == AgentState::Working {
-            spinner(app)
+        let glyph = if a.state == AgentState::Working {
+            spinner(app).to_string()
         } else {
-            a.state.symbol()
+            a.state.symbol().to_string()
         };
-        lines.push(Line::from(vec![
-            Span::styled(format!("{spin} "), Style::new().fg(c)),
+        let task = task_text(&a.task).to_string();
+        Line::from(vec![
+            Span::styled(lead.to_string(), Style::new().fg(BORDER)),
+            Span::styled(format!("{glyph} "), Style::new().fg(c)),
             Span::styled(
-                format!("{:<w$} ", trunc(&short_name, name_w), w = name_w),
+                format!("{:<name_w$} ", trunc(&a.name, name_w)),
                 bold().fg(FG),
             ),
             Span::styled(
-                trunc(
-                    &now_text(app, a),
-                    area.width.saturating_sub(name_w as u16 + 6) as usize,
-                ),
-                Style::new().fg(DIM),
+                format!("{:<task_w$} ", trunc(&task, task_w)),
+                Style::new().fg(FG),
             ),
-        ]));
+            Span::styled(trunc(&plain_now(app, a), act_w), Style::new().fg(DIM)),
+        ])
+    };
+    let mut lines: Vec<Line> = Vec::new();
+    // Coordinators lead the tree.
+    for a in s
+        .agents
+        .iter()
+        .filter(|a| a.coordinator && a.parent.is_none())
+    {
+        lines.push(member(a, ""));
     }
-    if listed.len() > room {
-        lines.push(Line::styled(
-            format!("  +{}", listed.len() - room),
+    let mut cursor_line = 0;
+    let n = order.len();
+    for (idx, team) in order.iter().enumerate() {
+        let members: Vec<_> = s
+            .agents
+            .iter()
+            .filter(|a| a.team_key() == *team && !a.coordinator)
+            .collect();
+        let count = |st: AgentState| members.iter().filter(|a| a.state == st).count();
+        let (work, wait, done) = (
+            count(AgentState::Working),
+            count(AgentState::Waiting) + count(AgentState::Stalled),
+            count(AgentState::Done),
+        );
+        let selected = idx == app.team_cursor % n.max(1);
+        if selected {
+            cursor_line = lines.len();
+        }
+        let last = idx + 1 == n;
+        let branch = if last { "└─ " } else { "├─ " };
+        let title = match s.team_label(team) {
+            Some(l) => format!("{l} ({team})"),
+            None => team.clone(),
+        };
+        let bg = if selected {
+            Style::new().bg(SELECTED_BG)
+        } else {
+            Style::new()
+        };
+        let active = members.iter().any(|a| a.state != AgentState::Done);
+        let mut head = vec![
+            Span::styled(branch, Style::new().fg(BORDER)),
+            Span::styled(
+                format!("{title}  "),
+                bold().fg(if active { ACCENT } else { DIM }),
+            ),
+        ];
+        if work > 0 {
+            head.push(Span::styled(
+                format!("● {work} {}  ", i.t("state-working")),
+                Style::new().fg(GREEN),
+            ));
+        }
+        if wait > 0 {
+            head.push(Span::styled(
+                format!("◐ {wait} {}  ", i.t("state-waiting")),
+                Style::new().fg(AMBER),
+            ));
+        }
+        head.push(Span::styled(
+            format!("✓ {done} {}", i.t("state-done")),
             Style::new().fg(DIM),
         ));
+        if selected {
+            head.push(Span::styled(
+                format!("   enter: {}", i.t("teams-open")),
+                Style::new().fg(DIM),
+            ));
+        }
+        lines.push(Line::from(head).style(bg));
+        if active || app.show_finished {
+            let lead = if last { "    " } else { "│   " };
+            let mut listed: Vec<_> = members
+                .iter()
+                .filter(|a| app.show_finished || a.state != AgentState::Done)
+                .collect();
+            listed.sort_by_key(|a| {
+                (
+                    a.state == AgentState::Done,
+                    std::cmp::Reverse(a.last_activity),
+                )
+            });
+            for a in listed {
+                lines.push(member(a, lead));
+            }
+        }
     }
-    let title = match s.team_label(team) {
-        Some(label) => format!("{team} · {label}  · {}", hosts.join(", ")),
-        None => format!("{}  · {}", team, hosts.join(", ")),
-    };
-    let hint = if cursor {
-        format!(" enter: {} ", i.t("teams-open"))
-    } else if selected {
-        format!(" {} ", i.t("teams-filtered"))
-    } else {
-        String::new()
-    };
-    let mut block =
-        pane(title, selected || cursor).title_bottom(Line::styled(hint, Style::new().fg(ACCENT)));
-    if cursor {
-        block = block.border_type(ratatui::widgets::BorderType::Thick);
+    // Keep the selected team in view.
+    let inner = tree.height.saturating_sub(2) as usize;
+    let scroll = cursor_line.saturating_sub(inner.saturating_sub(4)) as u16;
+    frame.render_widget(
+        Paragraph::new(lines)
+            .scroll((scroll, 0))
+            .block(pane(i.t("view-teams"), true)),
+        tree,
+    );
+    if cross_h >= 4 {
+        draw_cross(frame, cross, app);
     }
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// Activity in plain words (the raw command stays in the agent view).
+fn plain_now(app: &App, a: &crate::model::Agent) -> String {
+    match a.state {
+        AgentState::Working if !a.tool.is_empty() => plain_activity(app, &a.tool, &a.now),
+        _ => now_text(app, a),
+    }
 }
 
 fn draw_cross(frame: &mut Frame, area: Rect, app: &App) {
@@ -284,33 +228,4 @@ fn draw_cross(frame: &mut Frame, area: Rect, app: &App) {
             .block(pane(i.t("teams-cross"), false)),
         area,
     );
-}
-
-/// `qa-karar-kural-liste-alimi` in team `karar-kural` -> `qa-liste-alimi`.
-pub fn compact_name(name: &str, team: &str) -> String {
-    if team.is_empty() || name == team {
-        return name.to_string();
-    }
-    let mid = format!("-{team}-");
-    if let Some(i) = name.find(&mid) {
-        return format!("{}-{}", &name[..i], &name[i + mid.len()..]);
-    }
-    if let Some(rest) = name.strip_prefix(&format!("{team}-")) {
-        return rest.to_string();
-    }
-    name.to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn team_is_dropped_from_member_names() {
-        use super::compact_name;
-        assert_eq!(
-            compact_name("qa-karar-kural-liste-alimi", "karar-kural"),
-            "qa-liste-alimi"
-        );
-        assert_eq!(compact_name("provizyon-x", "provizyon"), "x");
-        assert_eq!(compact_name("Claimer#1b4b", "ekipsiz"), "Claimer#1b4b");
-    }
 }

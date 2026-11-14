@@ -21,7 +21,7 @@ conversation between your agents.
 
 ## Features (planned for v1.0)
 
-- **Teams** — agents grouped by Agent Teams team (or project); one card per team, cross-team requests, and `t` opens it (`Enter` filters every view to the chosen team)
+- **Teams** — a tree: the coordinator on top, busy teams with each agent's task and activity, finished teams collapsed to one line, cross-team requests; `t` opens it (`Enter` filters every view to the chosen team). Setups with configured teams start on this view
 - **Ten views, one keystroke apart** — switch instantly with `1`–`0` or `tab`; the selected agent follows you
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
@@ -54,7 +54,7 @@ conversation between your agents.
 | 8 | Channel | IRC-style live chat between agents |
 | 9 | Task map | Task dependencies, hand-offs and bottlenecks |
 | 0 | Pair | Two agents side by side, their conversation in between |
-| T | Teams | One card per team, cross-team requests |
+| t | Teams | Coordinator, teams and agents as a tree, cross-team requests |
 | H | History | Finished agents with duration, cost and outcome |
 
 ## Install
