@@ -267,3 +267,5 @@ act-install = installing packages
 act-wait = waiting
 act-inspect = looking through files
 warn-teams-file = teams_file { $arg } does not exist: team codes and names from it are not used
+teams-idle = finished teams
+teams-coordinator = Coordinator

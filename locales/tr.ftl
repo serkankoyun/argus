@@ -265,3 +265,5 @@ act-install = paket kuruyor
 act-wait = bekliyor
 act-inspect = dosyalara bakıyor
 warn-teams-file = teams_file { $arg } yok: oradaki ekip kodları ve adları kullanılmıyor
+teams-idle = biten ekipler
+teams-coordinator = Koordinatör

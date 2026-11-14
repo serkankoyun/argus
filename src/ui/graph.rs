@@ -17,8 +17,9 @@ use crate::model::{Message, Millis, MsgKind, Snapshot, YOU};
 
 /// How long a message takes to travel along an edge, in ms.
 pub const TRAVEL: Millis = 4_000;
-const NODE_W: u16 = 24;
-const NODE_H: u16 = 5;
+// Room for the name, the task, the current activity and the context bar.
+const NODE_W: u16 = 34;
+const NODE_H: u16 = 6;
 /// Edges reflect traffic from this window.
 const WINDOW: Millis = 15 * 60_000;
 
@@ -264,7 +265,19 @@ fn draw_node(buf: &mut Buffer, r: Rect, n: &Node, app: &App) {
             Span::styled(format!("{spin} "), Style::new().fg(c)),
             Span::styled(trunc(&a.name, inner_w.saturating_sub(2)), bold().fg(FG)),
         ]),
-        Line::styled(trunc(&now_text(app, a), inner_w), Style::new().fg(DIM)),
+        Line::styled(trunc(task_text(&a.task), inner_w), Style::new().fg(FG)),
+        Line::styled(
+            trunc(
+                &match a.state {
+                    crate::model::AgentState::Working if !a.tool.is_empty() => {
+                        plain_activity(app, &a.tool, &a.now)
+                    }
+                    _ => now_text(app, a),
+                },
+                inner_w,
+            ),
+            Style::new().fg(DIM),
+        ),
         Line::from(vec![
             Span::styled(bar(a.context_pct(), 5, '█', '░'), Style::new().fg(c)),
             Span::styled(
