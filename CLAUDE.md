@@ -44,6 +44,10 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
   Use narrow glyphs (► ◄ █ ░, text like `enter`) and keep `terminal.clear()` on view changes.
 - **Windows key events**: crossterm reports press *and* release; act on everything except
   `KeyEventKind::Release`. Offer alternatives (F-keys, mouse) and `--debug-keys` for diagnosis.
+- **Child processes and the terminal**: every spawned process (`ssh`, `claude`) must get
+  `stdin(Stdio::null())` unless it is fed through a pipe. An inherited stdin lets the child read
+  the console and steal the TUI's key presses (seen on Windows with `--host`: keys worked only
+  in `--demo`).
 - **Cross-platform remotes**: a Windows binary cannot be copied to a Linux server. The remote
   downloads its own build (`download_script` in `src/source/remote.rs`). Non-interactive SSH
   shells often lack `~/.local/bin` or Homebrew on `PATH`; probe known install paths. Run remote

@@ -81,6 +81,9 @@ fn ssh(target: &str) -> Command {
         "ServerAliveInterval=10",
         target,
     ]);
+    // Never let ssh read the terminal: it shares the console with the TUI and would
+    // swallow the user's key presses. Callers that feed data use `.stdin(piped())`.
+    c.stdin(Stdio::null());
     c
 }
 

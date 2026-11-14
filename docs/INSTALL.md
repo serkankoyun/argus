@@ -334,6 +334,10 @@ order:
 Remote copies in `~/.cache/argus/` are only used on servers and do not affect your local
 version.
 
+**Keys do nothing while remote hosts are connected (v0.1.1 and older)** — The background
+`ssh` process read the keyboard and swallowed key presses, so keys worked in `--demo` but
+not with `--host`. Fixed in v0.1.2; update Argus.
+
 **Number keys do not switch views** — Use `F1`–`F10`, `Tab` / `Shift+Tab`, or click the
 tabs with the mouse. Start Argus with `argus --debug-keys` to see which key it receives
 (bottom right) and include that in an issue.
