@@ -260,3 +260,101 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    use super::*;
+    use crate::i18n::I18n;
+    use crate::model::YOU;
+    use crate::source::demo::DemoSource;
+    use crate::source::{Channels, Source};
+
+    /// A snapshot far bigger than any screen: the demo team copied many times.
+    fn crowded() -> crate::model::Snapshot {
+        let mut s = DemoSource::new("en").poll();
+        let base_agents = s.agents.clone();
+        let base_msgs = s.messages.clone();
+        let base_tools = s.tools.clone();
+        for k in 1..8 {
+            let tag = |id: &str| {
+                if id == YOU {
+                    id.to_string()
+                } else {
+                    format!("{id}-{k}")
+                }
+            };
+            for a in &base_agents {
+                let mut a = a.clone();
+                a.id = tag(&a.id);
+                a.name = format!("{}-{k}", a.name);
+                a.parent = a.parent.as_deref().map(tag);
+                a.host = format!("host-{}", k % 3);
+                a.team = Some(format!("team-{}", k % 4));
+                s.agents.push(a);
+            }
+            for m in &base_msgs {
+                let mut m = m.clone();
+                m.from = tag(&m.from);
+                m.to = tag(&m.to);
+                s.messages.push(m);
+            }
+            for t in &base_tools {
+                let mut t = t.clone();
+                t.agent = tag(&t.agent);
+                s.tools.push(t);
+            }
+        }
+        s
+    }
+
+    fn app_with(snapshot: crate::model::Snapshot) -> App {
+        let (snap_tx, snap_rx) = mpsc::channel();
+        let (ctl_tx, _ctl_rx) = mpsc::channel();
+        let (_note_tx, note_rx) = mpsc::channel();
+        snap_tx.send(snapshot).unwrap();
+        let mut app = App::new(
+            I18n::new(Some("en")),
+            Channels {
+                snapshots: snap_rx,
+                controls: ctl_tx,
+                notices: note_rx,
+            },
+            true,
+        );
+        app.on_tick();
+        app
+    }
+
+    #[test]
+    fn every_view_renders_crowded_and_tiny_without_panicking() {
+        let mut app = app_with(crowded());
+        assert!(app.snapshot.agents.len() > 60);
+        for (w, h) in [(187, 54), (120, 36), (80, 24), (40, 12), (10, 5)] {
+            let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+            for v in View::ALL {
+                app.view = v;
+                for grouped in [false, true] {
+                    app.group_by_team = grouped;
+                    terminal
+                        .draw(|f| draw(f, &app))
+                        .unwrap_or_else(|e| panic!("{v:?} at {w}x{h}: {e}"));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_view_renders_empty() {
+        let mut app = app_with(crate::model::Snapshot::default());
+        let mut terminal = Terminal::new(TestBackend::new(120, 36)).unwrap();
+        for v in View::ALL {
+            app.view = v;
+            terminal.draw(|f| draw(f, &app)).unwrap();
+        }
+    }
+}
