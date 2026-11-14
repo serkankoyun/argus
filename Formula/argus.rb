@@ -2,28 +2,28 @@
 class Argus < Formula
   desc "Watch and steer Claude Code agents live from the terminal"
   homepage "https://github.com/serkankoyun/argus"
-  version "0.1.25"
+  version "0.1.26"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/serkankoyun/argus/releases/download/v0.1.25/argus-v0.1.25-aarch64-apple-darwin.tar.gz"
-      sha256 "22b1e8b033a4012835f14868db6cf2a9e8a1dfe6c3122b41eca3bcfb6e5aba26"
+      url "https://github.com/serkankoyun/argus/releases/download/v0.1.26/argus-v0.1.26-aarch64-apple-darwin.tar.gz"
+      sha256 "7ac5f9b164467e9c1ab21bc9dab3a1cd66035d55bca22be429d329003fb805a0"
     end
     on_intel do
-      url "https://github.com/serkankoyun/argus/releases/download/v0.1.25/argus-v0.1.25-x86_64-apple-darwin.tar.gz"
-      sha256 "a4d8b13c3955e1596f1d416347a9639fa13719f4e24c010b8aadcf8e08c92259"
+      url "https://github.com/serkankoyun/argus/releases/download/v0.1.26/argus-v0.1.26-x86_64-apple-darwin.tar.gz"
+      sha256 "df4504efd5d02128010c670d7bd15f2f5840df0605babad92939e544516d9675"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/serkankoyun/argus/releases/download/v0.1.25/argus-v0.1.25-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "4b6450cf56ad2f00e1807ec43b4d17f3b343385e2046ef832ca62047f3896c0e"
+      url "https://github.com/serkankoyun/argus/releases/download/v0.1.26/argus-v0.1.26-aarch64-unknown-linux-gnu.tar.gz"
+      sha256 "f59f7bdffa2215d0fd0004b9481aa7bbd3c3e87a3fb71793b055fb5b015fe745"
     end
     on_intel do
-      url "https://github.com/serkankoyun/argus/releases/download/v0.1.25/argus-v0.1.25-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "4c90d767c9aa608331bf1d23f8b4c13a301a88e94c4f3f9622b81aff61662e88"
+      url "https://github.com/serkankoyun/argus/releases/download/v0.1.26/argus-v0.1.26-x86_64-unknown-linux-gnu.tar.gz"
+      sha256 "afda13e3d61f73a19bdc66db9f5cf2925833cc6233ab45968c3c24b7ab28210b"
     end
   end
 
