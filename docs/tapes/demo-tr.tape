@@ -1,0 +1,32 @@
+# Records the README demo and per-view screenshots (Turkish).
+Output docs/media/demo-tr.gif
+
+Set Shell "bash"
+Set FontSize 14
+Set Width 1600
+Set Height 900
+Set Padding 12
+Set Theme "GitHub Dark"
+Set TypingSpeed 80ms
+
+Hide
+Type "./target/release/argus --demo --lang tr"
+Enter
+Sleep 4s
+Show
+
+Sleep 3s
+Screenshot docs/media/overview-tr.png
+Type "5"
+Sleep 5s
+Screenshot docs/media/graph-tr.png
+Type "6"
+Sleep 5s
+Screenshot docs/media/room-tr.png
+Type "7"
+Sleep 5s
+Screenshot docs/media/lanes-tr.png
+Type "1"
+Sleep 2s
+Hide
+Type "q"
