@@ -330,7 +330,10 @@ impl EventLog {
                     .copied();
                 let later = self.sessions.get(a.id.as_str()).map_or(0, |l| l.last);
                 if let Some(at) = stopped {
-                    if at + 1000 >= a.last_activity && at >= later {
+                    // A turn ends while it waits on background work or on the
+                    // agents it started: that stop is not the end of the job.
+                    let waiting = a.state == AgentState::Waiting;
+                    if !waiting && at + 1000 >= a.last_activity && at >= later {
                         a.state = AgentState::Done;
                         continue;
                     }

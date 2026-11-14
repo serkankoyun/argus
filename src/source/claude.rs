@@ -387,6 +387,8 @@ pub struct Session {
     background: Option<(Millis, String)>,
     /// It handed its final report back (`SubagentHandback` and similar).
     handed_back: Option<Millis>,
+    /// Subagent id named by the structured result of the line being read.
+    line_agent_id: Option<String>,
     tool_calls: u32,
     errors: u32,
     tools: Vec<ToolCall>,
@@ -430,6 +432,7 @@ impl Session {
             last_tool: (String::new(), String::new()),
             background: None,
             handed_back: None,
+            line_agent_id: None,
             tool_calls: 0,
             errors: 0,
             tools: Vec::new(),
@@ -487,6 +490,11 @@ impl Session {
         if let Some(n) = v.get("teamName").and_then(Value::as_str) {
             self.team = Some(n.to_string());
         }
+        // Claude Code also records a structured result next to the message;
+        // a spawn's subagent id is there (`toolUseResult.agentId`).
+        self.line_agent_id = v
+            .get("toolUseResult")
+            .and_then(|t| agent_id_in(&t.to_string()));
         let Some(msg) = v.get("message") else { return };
         match kind {
             "assistant" => self.ingest_assistant(msg, ts),
@@ -671,7 +679,8 @@ impl Session {
                     // real result arrives later, so the notice is not a result.
                     let launched = text.trim_start().starts_with("Async agent launched");
                     if let Some(sp) = self.spawns.iter_mut().find(|s| s.tool_use_id == id) {
-                        if let Some(aid) = agent_id_in(&text) {
+                        if let Some(aid) = agent_id_in(&text).or_else(|| self.line_agent_id.clone())
+                        {
                             sp.agent_id = Some(aid);
                         }
                         if !launched {
@@ -749,14 +758,19 @@ fn bash_core(cmd: &str) -> String {
         .map(str::trim)
         .filter(|p| !p.is_empty())
         .collect();
-    let setup = |p: &str| {
-        p.starts_with("cd ")
-            || p.starts_with("export ")
-            || p.split_whitespace()
-                .next()
-                .is_some_and(|w| w.contains('=') && !w.starts_with('-'))
-    };
-    let core: Vec<&str> = parts.iter().copied().filter(|p| !setup(p)).collect();
+    // "S=1 npm test" -> "npm test"; a part that is only assignments or a cd goes.
+    let core: Vec<String> = parts
+        .iter()
+        .map(|p| {
+            p.split_whitespace()
+                .skip_while(|w| w.contains('=') && !w.starts_with('-'))
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .filter(|p| {
+            !p.is_empty() && !p.starts_with("cd ") && p != "cd" && !p.starts_with("export ")
+        })
+        .collect();
     if core.is_empty() {
         cmd.trim().to_string()
     } else {
@@ -1660,6 +1674,10 @@ mod tests {
             "npm test -- --run"
         );
         assert_eq!(bash_core("cd /tmp/x"), "cd /tmp/x");
+        assert_eq!(
+            bash_core("S=/tmp/a; export X=1; pnpm exec playwright test"),
+            "pnpm exec playwright test"
+        );
         let mut snap = Snapshot {
             agents: vec![Agent {
                 name: "agent-ac4e4d".into(),

@@ -24,11 +24,24 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let s = &scope;
     let i = &app.i18n;
     let order = app.team_order();
-    let coords: Vec<_> = s
+    // Live coordinators; a finished one only when no other is around.
+    let all_coords: Vec<_> = s
         .agents
         .iter()
         .filter(|a| a.coordinator && a.parent.is_none())
         .collect();
+    let mut coords: Vec<_> = all_coords
+        .iter()
+        .copied()
+        .filter(|a| app.show_finished || a.state != AgentState::Done)
+        .collect();
+    if coords.is_empty() {
+        coords = all_coords
+            .into_iter()
+            .max_by_key(|a| a.last_activity)
+            .into_iter()
+            .collect();
+    }
     if order.is_empty() && coords.is_empty() {
         frame.render_widget(
             Paragraph::new(Line::styled(i.t("flow-empty"), Style::new().fg(DIM)))

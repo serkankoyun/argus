@@ -194,7 +194,12 @@ pub fn open_requests(app: &App) -> Vec<&Message> {
         .filter(|m| m.kind != MsgKind::Result)
         .filter(|m| match m.answered_at {
             Some(at) => app.now - at < 60_000,
-            None => m.kind != MsgKind::Msg || app.now - m.ts < MSG_OPEN_MS,
+            // Plain messages, and tasks whose agent Argus never saw, are not
+            // shown as running forever.
+            None => {
+                let known = m.kind != MsgKind::Task || app.full.agent(&m.to).is_some();
+                (m.kind != MsgKind::Msg && known) || app.now - m.ts < MSG_OPEN_MS
+            }
         })
         .collect()
 }

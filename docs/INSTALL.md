@@ -256,6 +256,8 @@ the team in agent names (for example `qa-payments-review`), describe it in
   "coordinator": "Coordinator",
   "tasks": { "Developer · refunds": "Refund API and its tests" },
   "tasks_file": "/path/to/argus-tasks.json",
+  "independent_roles": ["qa-", "security-"],
+  "independent": "Independent",
   "default": "no-team"
 }
 ```
@@ -267,7 +269,8 @@ ones, so agents from before a team rename stay with that team. Team display name
 `labels`, or from the field named by `label_key` in `teams_file` objects. With `short_names`,
 grouped agents are shown as `<role> · <work>` (`roles` gives readable role names), and
 `coordinator` names the sessions that start subagents and puts them in a group of their own.
-`tasks` (or a `tasks_file` holding the same object) sets an agent's task line by its displayed
+`independent_roles` puts agents whose name starts with one of those prefixes (reviewers that work
+across teams) in the `independent` group. `tasks` (or a `tasks_file` holding the same object) sets an agent's task line by its displayed
 name; otherwise the task is the spawn description without a leading run id, the first
 sentence of the agent's prompt, or, for a coordinator, the latest prompt you typed. A missing
 `teams_file`/`tasks_file` is skipped and reported in the footer and by `argus init`, which

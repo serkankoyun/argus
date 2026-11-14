@@ -52,6 +52,10 @@ pub struct Rules {
     tasks: Vec<(String, String)>,
     /// `teams_file` / `tasks_file` paths that do not exist.
     missing: Vec<String>,
+    /// Role prefixes that work across teams (independent QA, security), and
+    /// the group they are shown in.
+    independent_roles: Vec<String>,
+    independent: Option<String>,
 }
 
 fn strings(v: Option<&Value>) -> Vec<String> {
@@ -166,6 +170,12 @@ impl Rules {
             })
             .unwrap_or_default();
         Rules {
+            independent_roles: strings(v.get("independent_roles")),
+            independent: v
+                .get("independent")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string),
             tasks,
             missing,
             short_names: v
@@ -317,7 +327,14 @@ impl Rules {
                 }
             }
             if a.team.is_none() {
-                a.team = self.code_of(&a.name);
+                let independent = self
+                    .independent_roles
+                    .iter()
+                    .any(|p| a.name.starts_with(p.as_str()));
+                a.team = match (&self.independent, independent) {
+                    (Some(label), true) => Some(label.clone()),
+                    _ => self.code_of(&a.name),
+                };
             }
             if let Some(prefix) = self.strip.iter().find(|p| a.name.starts_with(p.as_str())) {
                 let role = prefix.trim_end_matches('-');
