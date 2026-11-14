@@ -44,6 +44,9 @@ Download the archive for your platform from the
 | Linux, ARM64 | `argus-<version>-aarch64-unknown-linux-gnu.tar.gz` |
 | Windows, x86-64 | `argus-<version>-x86_64-pc-windows-msvc.zip` |
 
+Each archive contains the program (`argus` or `argus.exe`), a short `README.md`, this
+guide as `INSTALL.md`, and `LICENSE`.
+
 Not sure which Mac you have? Run `uname -m`: `arm64` means Apple Silicon, `x86_64` Intel.
 
 ### macOS

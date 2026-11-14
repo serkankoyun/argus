@@ -35,6 +35,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+      # Package docs come from the workflow's branch so fixes reach existing releases.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: latest
+          sparse-checkout: |
+            packaging
+            docs/INSTALL.md
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -44,7 +52,9 @@ jobs:
         run: |
           name="argus-${TAG}-${{ matrix.target }}"
           mkdir -p "dist/$name"
-          cp target/${{ matrix.target }}/release/argus README.md LICENSE "dist/$name/"
+          cp target/${{ matrix.target }}/release/argus LICENSE "dist/$name/"
+          cp latest/packaging/README.md "dist/$name/README.md"
+          cp latest/docs/INSTALL.md "dist/$name/INSTALL.md"
           tar czf "dist/$name.tar.gz" -C dist "$name"
           rm -rf "dist/$name"
       - name: Package (windows)
@@ -53,7 +63,9 @@ jobs:
         run: |
           $name = "argus-$env:TAG-${{ matrix.target }}"
           New-Item -ItemType Directory "dist/$name" -Force | Out-Null
-          Copy-Item target/${{ matrix.target }}/release/argus.exe, README.md, LICENSE "dist/$name"
+          Copy-Item target/${{ matrix.target }}/release/argus.exe, LICENSE "dist/$name"
+          Copy-Item latest/packaging/README.md "dist/$name/README.md"
+          Copy-Item latest/docs/INSTALL.md "dist/$name/INSTALL.md"
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
           Remove-Item -Recurse "dist/$name"
       - uses: actions/upload-artifact@v4
