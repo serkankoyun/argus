@@ -76,7 +76,8 @@ Agent messages and "now" descriptions are shown in the user's language.
 - Exact states: transcripts are silent during long tool calls, so `argus hook --install` also
   records lifecycle events in an open JSONL format (`docs/EVENTS.md`). Other orchestrators
   report through the same format (`ARGUS_EVENTS`); agent-orchestra's log is read as is.
-  No orchestrator-specific code. Subagents of the same type are named by their task
+  No orchestrator-specific code. A subagent that ended its turn without handing back while
+  agents it started still run is waiting for them, not finished. Subagents of the same type are named by their task
   description; without a team filter the Overview flow tags each line with its team.
   Team sources, in order: Agent Teams, `team`/`agentName` in events, name rules in
   `<claude dir>/argus/teams.json` (strip role prefix, longest team code, aliases, labels),

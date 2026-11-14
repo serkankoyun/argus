@@ -174,6 +174,9 @@ impl Source for ClaudeSource {
         if let Some(rules) = super::groups::Rules::load(&self.root) {
             rules.apply(&mut snap);
         }
+        // Again with the final states and display names.
+        let sessions: Vec<&Session> = self.files.values().map(|t| &t.session).collect();
+        wait_for_children(&mut snap, &sessions, now);
         self.host_name = host.name.clone();
         snap.tasks = read_tasks(&self.root);
         if snap.tasks.is_empty() {
@@ -941,7 +944,11 @@ pub fn build_snapshot<'a>(
         for m in &s.sent {
             let to = sessions
                 .iter()
-                .find(|c| agent_name(c, &sessions) == m.to)
+                .find(|c| {
+                    // By name, or by the raw agent id from a spawn result.
+                    agent_name(c, &sessions) == m.to
+                        || (!m.to.is_empty() && c.id.rsplit('/').next() == Some(m.to.as_str()))
+                })
                 .map(|c| c.id.clone())
                 .unwrap_or_else(|| m.to.clone());
             let label = if m.summary.is_empty() {
@@ -982,6 +989,7 @@ pub fn build_snapshot<'a>(
         }
     }
     disambiguate_names(&mut snap, &sessions);
+    wait_for_children(&mut snap, &sessions, now);
     // Top-level sessions that started subagents coordinate them.
     let parents: std::collections::HashSet<String> = snap
         .agents
@@ -1232,6 +1240,61 @@ fn never_asks(s: &Session, all: &[&Session]) -> bool {
         _ => s.mode.as_str(),
     };
     super::events::mode_never_asks(mode)
+}
+
+/// A subagent whose turn ended while agents it started are still running has
+/// not finished: it waits for them ("waiting on its own background work").
+/// Team leads end their turn with "waiting for the tester" and go silent, so
+/// without this they looked finished. Repeats until stable so that a waiting
+/// child keeps its own parent waiting too.
+fn wait_for_children(snap: &mut Snapshot, sessions: &[&Session], now: Millis) {
+    loop {
+        let mut changed = false;
+        for i in 0..snap.agents.len() {
+            let a = &snap.agents[i];
+            let refresh = a.state == AgentState::Waiting && a.now.starts_with("[wait ");
+            if a.parent.is_none()
+                || !(refresh || matches!(a.state, AgentState::Done | AgentState::Idle))
+            {
+                continue;
+            }
+            let handed_back = sessions
+                .iter()
+                .find(|s| s.id == a.id)
+                .is_some_and(|s| s.handed_back.is_some());
+            if handed_back {
+                continue;
+            }
+            let busy: Vec<&Agent> = snap
+                .agents
+                .iter()
+                .filter(|c| c.parent.as_deref() == Some(a.id.as_str()))
+                .filter(|c| c.state != AgentState::Done)
+                .collect();
+            let Some(since) = busy.iter().map(|c| c.started).min() else {
+                if refresh {
+                    // Its agents finished; it is about to read their reports.
+                    snap.agents[i].state = AgentState::Idle;
+                    changed = true;
+                }
+                continue;
+            };
+            let names: Vec<&str> = busy.iter().map(|c| c.name.as_str()).collect();
+            let now_text = format!(
+                "[wait {}] {}",
+                elapsed(now - since.max(a.last_activity)),
+                names.join(", ")
+            );
+            let a = &mut snap.agents[i];
+            changed |= a.state != AgentState::Waiting;
+            a.state = AgentState::Waiting;
+            a.tool = "Agent".into();
+            a.now = now_text;
+        }
+        if !changed {
+            break;
+        }
+    }
 }
 
 fn infer_state(
@@ -1614,6 +1677,22 @@ mod tests {
         assert_eq!(snap.agent("sess-1").unwrap().name, "shop#sess");
     }
 
+    /// Live case (18:04:09): the lead resumed its agent with
+    /// `SendMessage {to: "a04d93447548e83e5"}`; views showed the raw id.
+    #[test]
+    fn messages_to_raw_agent_ids_resolve() {
+        let (mut l, c) = (lead(), child());
+        l.ingest(&json!({"type":"assistant","timestamp":ts(40),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"m1","name":"SendMessage","input":{"to":"abc123","summary":"Ek iş","message":"Ek iş: bir adım daha"}}]}}));
+        let snap = build_snapshot([&l, &c].into_iter(), "box", &[], T0 + 41_000);
+        let m = snap
+            .messages
+            .iter()
+            .find(|m| m.kind == MsgKind::Msg)
+            .unwrap();
+        assert_eq!(m.to, "sess-1/abc123");
+    }
+
     #[test]
     fn results_complete_subagents() {
         let (mut l, c) = (lead(), child());
@@ -1665,6 +1744,58 @@ mod tests {
         );
         let snap = build_snapshot([&c].into_iter(), "box", &[], T0 + 30 * 60_000);
         assert_eq!(snap.agents[0].state, AgentState::Done);
+    }
+
+    /// Live case (Nov 14, 18:14): `lider-kabuk-tasarim-gezinme` launched its
+    /// tester in the background, checked the developer's branch and ended its
+    /// turn with "waiting for the tester's report". Argus showed it Done.
+    #[test]
+    fn lead_waiting_for_its_running_child_is_waiting() {
+        let mut lead = Session::new("s/aaec8b".into(), Some("s".into()), "-p".into());
+        lead.ingest(
+            &json!({"type":"user","timestamp":ts(0),"message":{"role":"user",
+            "content":"Akış: R-20261114-1720-kabuk-tasarim-nav-1-demo. Ekibi yönet."}}),
+        );
+        lead.ingest(&json!({"type":"assistant","timestamp":ts(10),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"toolu_01Lt","name":"Agent","input":{
+                "description":"testci-kabuk-tasarim-gezinme · R-20261114-1720-kabuk-tasarim-nav-1-demo · Gezinme bağımsız testi",
+                "subagent_type":"orchestra-test-writer","prompt":"test","run_in_background":true}}]}}));
+        lead.ingest(&json!({"type":"user","timestamp":ts(11),"agentId":"aaec8b",
+            "message":{"role":"user","content":[{"tool_use_id":"toolu_01Lt","type":"tool_result","content":[
+                {"type":"text","text":"Async agent launched successfully.\nagentId: a7ed0b (internal ID)\nThe agent is working in the background."}]}]},
+            "toolUseResult":{"isAsync":true,"status":"async_launched","agentId":"a7ed0b"}}));
+        lead.ingest(&json!({"type":"assistant","timestamp":ts(13),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"b1","name":"Bash","input":{"command":"git status -s","description":"Verify"}}]}}));
+        lead.ingest(
+            &json!({"type":"user","timestamp":ts(14),"message":{"role":"user","content":[
+            {"tool_use_id":"b1","type":"tool_result","content":"clean"}]}}),
+        );
+        lead.ingest(&json!({"type":"assistant","timestamp":ts(17),"message":{"role":"assistant","content":[
+            {"type":"text","text":"Geliştirici dalı doğrulandı. Testçinin bitiş bildirimini bekliyorum."}]}}));
+        assert_eq!(lead.spawns[0].agent_id.as_deref(), Some("a7ed0b"));
+
+        let mut kid = Session::new("s/a7ed0b".into(), Some("s/aaec8b".into()), "-p".into());
+        kid.ingest(
+            &json!({"type":"user","timestamp":ts(12),"message":{"role":"user","content":"test"}}),
+        );
+        kid.ingest(&json!({"type":"assistant","timestamp":ts(830),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"k1","name":"Bash","input":{"command":"pnpm exec vitest run"}}]}}));
+
+        let at = T0 + 840_000;
+        let snap = build_snapshot([&lead, &kid].into_iter(), "box", &[], at);
+        let l = snap.agent("s/aaec8b").unwrap();
+        assert_eq!(l.state, AgentState::Waiting);
+        assert!(l.now.starts_with("[wait"), "{}", l.now);
+        assert_eq!(snap.agent("s/a7ed0b").unwrap().state, AgentState::Working);
+
+        // Once the child hands back, nothing holds the silent lead any more.
+        kid.ingest(
+            &json!({"type":"assistant","timestamp":ts(835),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"h1","name":"SubagentHandback","input":{"report":"KABUL"}}]}}),
+        );
+        let snap = build_snapshot([&lead, &kid].into_iter(), "box", &[], at);
+        assert_eq!(snap.agent("s/a7ed0b").unwrap().state, AgentState::Done);
+        assert_eq!(snap.agent("s/aaec8b").unwrap().state, AgentState::Done);
     }
 
     #[test]

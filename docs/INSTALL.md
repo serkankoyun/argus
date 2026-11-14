@@ -395,7 +395,11 @@ messaging it for another round) shows as working again instead of staying finish
 **A subagent waiting on its own background command shows as finished, or one that handed
 back its report shows as working** — Fixed in v0.1.17: a command started with
 `run_in_background` keeps the agent working (`[bg 3m10s] cmd`), and a `SubagentHandback`
-call finishes it.
+call finishes it. Until v0.1.27 an agent that ended its turn while it waited (a team lead
+saying "waiting for the tester", a coordinator polling CI in the background) still turned
+finished or idle after a few quiet minutes; now it shows `◐ waiting for the agents it
+started: …` or `waiting for its background job: …`, and Open requests show its task as
+`◐ WAITING`. Messages sent to a raw agent id are named after that agent.
 
 **Agents started by a team lead show the coordinator as their parent, as `agent-…`, or in
 the default group** — Fixed in v0.1.23: the parent is whoever's spawn result returned the

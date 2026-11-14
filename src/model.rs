@@ -150,6 +150,13 @@ impl Agent {
         self.usage.billed()
     }
 
+    /// Its turn ended but it waits on work it started: a background command
+    /// (`[bg ...]`) or agents it launched (`[wait ...]`). Not an approval, and a
+    /// turn-end event does not make it idle.
+    pub fn waits_on_own_work(&self) -> bool {
+        self.now.starts_with("[bg ") || self.now.starts_with("[wait ")
+    }
+
     /// The group an agent belongs to: its Agent Teams team, else its project.
     pub fn team_key(&self) -> String {
         match &self.team {

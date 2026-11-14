@@ -346,7 +346,7 @@ impl EventLog {
                 .filter_map(|k| self.sessions.get(*k))
                 .any(|l| mode_never_asks(&l.mode) && !l.asking);
             // (Waiting on its own background job is not an approval.)
-            if quiet && a.state == AgentState::Waiting && !a.now.starts_with("[bg") {
+            if quiet && a.state == AgentState::Waiting && !a.waits_on_own_work() {
                 a.state = AgentState::Working;
                 approved.insert(a.id.clone());
             }
@@ -369,6 +369,9 @@ impl EventLog {
                     a.last_activity = a.last_activity.max(live.last);
                     approved.insert(a.id.clone());
                 }
+            } else if live.idle && a.state == AgentState::Waiting && a.waits_on_own_work() {
+                // Its turn ended, but it still waits on its own background work.
+                approved.insert(a.id.clone());
             } else if live.idle && (a.state != AgentState::Done || now - live.last < 30 * 60_000) {
                 a.state = AgentState::Idle;
                 approved.insert(a.id.clone());
@@ -550,6 +553,15 @@ mod tests {
         log.apply(&mut snap, 3000);
         assert_eq!(snap.agents[0].state, AgentState::Idle);
         assert_eq!(snap.agents[1].state, AgentState::Done);
+        // A turn that ends while its own background job or started agents
+        // still run (live: coordinator polling CI, lead waiting for its tester)
+        // stays waiting.
+        let mut snap = snap_with(AgentState::Waiting, 1900);
+        snap.agents[0].now = "[bg 2m] until az pipelines runs show".into();
+        snap.agents[1].now = "[wait 16m] testci-kabuk-tasarim-gezinme".into();
+        log.apply(&mut snap, 3000);
+        assert_eq!(snap.agents[0].state, AgentState::Waiting);
+        assert_eq!(snap.agents[1].state, AgentState::Waiting);
         // Sessions in auto mode never wait for approvals.
         let mut log = EventLog::default();
         log.record(&parse(r#"{"ts":5,"event":"PostToolUse","sid":"s","mode":"auto"}"#).unwrap());

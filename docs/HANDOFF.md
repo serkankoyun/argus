@@ -33,7 +33,12 @@ session. Read `CLAUDE.md` and `docs/PROJECT_BRIEF.md` first.
   parent is the agent whose spawn result returned the child's `agentId`
   (`toolUseResult.agentId` on the transcript line, or the result text).
 - `SubagentStop` fires whenever a subagent's turn ends, including while it waits on a
-  background job or on agents it started; it is not "finished".
+  background job or on agents it started; it is not "finished". A subagent without a
+  hand-back whose children still run is waiting (`[wait …]`), and a `Stop` event does not
+  make a `[bg …]`/`[wait …]` agent idle (v0.1.27).
+- `subagents/agent-<id>.meta.json` holds `name`, `description`, `parentAgentId`,
+  `spawnDepth` and `finished`; `finished: true` is written when a turn ends, so it is
+  true for a lead that still waits on its children.
 - Orchestrator descriptions follow `<agent-name> · <run> · <task>`; nested agents have no
   `name` parameter.
 - Team rules live in `~/.claude/argus/teams.json` (see `docs/INSTALL.md`); `argus init` shows
@@ -41,7 +46,8 @@ session. Read `CLAUDE.md` and `docs/PROJECT_BRIEF.md` first.
 
 ## Open work (see GitHub issues)
 
-- #5 / #9: verify the 0.1.26 fixes (waiting agents, nested parents and names) on live data.
+- #5 / #9: verified on live data with v0.1.27 (waiting leads and coordinators, nested
+  parents, names, teams).
 - #10: Network "Independent" cluster and lead→child edges, Room team tables, and the
   **Görev haritası** redesign: map runs (`runs/<run-id>/run.json` and stage files) with stage
   chips Analiz → Plan → Geliştirme → Test → QA → Güvenlik → CI → Birleşme and a bottleneck

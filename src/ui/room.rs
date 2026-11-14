@@ -237,6 +237,23 @@ fn draw_requests(frame: &mut Frame, area: Rect, app: &App) {
                     &[("t", duration(((app.now - m.ts) / 1000) as u64).as_str())],
                 ),
             ),
+            // The target ended its turn and waits on its own work (background
+            // job, agents it started): the request is not being worked on.
+            (MsgKind::Task, None)
+                if app
+                    .full
+                    .agent(&m.to)
+                    .is_some_and(|a| a.state == AgentState::Waiting && a.waits_on_own_work()) =>
+            {
+                (
+                    i.t("req-on-hold"),
+                    AMBER,
+                    i.t_args(
+                        "req-running",
+                        &[("t", duration(((app.now - m.ts) / 1000) as u64).as_str())],
+                    ),
+                )
+            }
             _ => (
                 i.t("req-working"),
                 GREEN,
