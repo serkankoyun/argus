@@ -218,11 +218,13 @@ impl EventLog {
             if !e.team.is_empty() {
                 slot.1 = e.team.clone();
             }
-            if !e.spawned.is_empty() && !e.desc.is_empty() {
-                slot.2 = e.desc.clone();
+            // Writers that drop the run id may leave its separator ("· task").
+            let clean = |t: &str| t.trim().trim_start_matches(['·', ' ']).to_string();
+            if !e.spawned.is_empty() && !clean(&e.desc).is_empty() {
+                slot.2 = clean(&e.desc);
             }
-            if !e.task.is_empty() {
-                slot.2 = e.task.clone();
+            if !clean(&e.task).is_empty() {
+                slot.2 = clean(&e.task);
             }
         }
         if !e.spawned.is_empty() {
@@ -498,6 +500,12 @@ mod tests {
                 .unwrap(),
         );
         assert_eq!(log.identities["s/a1"].0, "qa-provizyon-x");
+        // agent-orchestra's log, Nov 14: the run id moved to "run", its separator stayed.
+        log.record(&parse(r#"{"v":1,"ts":"2026-11-14T16:54:52.915Z","event":"PostToolUse","sid":"s","tool":"Agent","run":"R-20261114-1515-kabuk-tasarim-kurulum-si","agentName":"qa-kabuk-tasarim-kurulum-sihirbazi","desc":"· Kurulum sihirbazı ve Baş Yönetici panosu bağımsız QA","spawnedAgentId":"ae4b9c"}"#).unwrap());
+        assert_eq!(
+            log.identities["s/ae4b9c"].2,
+            "Kurulum sihirbazı ve Baş Yönetici panosu bağımsız QA"
+        );
         assert_eq!(log.identities["s/a2"].1, "kurum-agi");
         assert!(log.sessions.contains_key("s"));
     }

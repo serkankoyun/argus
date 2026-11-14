@@ -416,6 +416,12 @@ and activity like the Teams view, and an agent named `agent-…` takes the name 
 with (`<agent-name> · <run> · <task>`). Spawn events that carry `agentId` (a lead starting its
 own agents) set the parent.
 
+**Task lines start with `· ` or independent reviewers sit inside a team** — Event writers that
+move the run id into its own field may keep its separator (`"desc":"· Kurulum sihirbazı …"`);
+since v0.1.28 the separator is dropped. Reviewers that work across teams (independent QA,
+security) get a group of their own with `"independent_roles": ["qa-", "guvenlik-"]` and
+`"independent": "Bağımsız"` in `teams.json`; their name keeps the team they review.
+
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
 marks it read, or when the sender sends a newer one; unanswered messages leave the list

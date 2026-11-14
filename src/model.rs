@@ -207,7 +207,7 @@ impl MsgKind {
 /// (orchestrators prefix assignments with them; the detail view keeps it).
 /// Empty when the task is nothing but such an id.
 pub fn task_text(task: &str) -> &str {
-    let t = task.trim();
+    let t = task.trim().trim_start_matches(['·', ' ']);
     let token_end = t.find([' ', ':']).unwrap_or(t.len());
     let token = &t[..token_end];
     let digits = token.chars().filter(|c| c.is_ascii_digit()).count();
