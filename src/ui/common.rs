@@ -180,7 +180,18 @@ pub fn name(app: &App, id: &str) -> String {
     if id == crate::model::YOU {
         app.i18n.t("you")
     } else {
-        app.full.name_of(id).to_string()
+        let n = app.full.name_of(id);
+        if n != id {
+            return n.to_string();
+        }
+        // An agent Argus has not seen yet: name it from the task it was given
+        // ("<name> · <run> · <task>" or the description), never by a raw id.
+        app.full
+            .messages
+            .iter()
+            .find(|m| m.to == id && m.kind == crate::model::MsgKind::Task && !m.label.is_empty())
+            .map(|m| m.label.split(" · ").next().unwrap_or(&m.label).to_string())
+            .unwrap_or_else(|| n.to_string())
     }
 }
 

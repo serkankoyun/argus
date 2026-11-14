@@ -48,7 +48,7 @@ conversation between your agents.
 | 2 | Sequence | Agents as lanes, messages as arrows, task board |
 | 3 | Agent | Context breakdown, cost, tool calls, live transcript |
 | 4 | Fleet | Every connected host, collector health, alerts |
-| 5 | Graph | Live network of agents with messages in flight |
+| 5 | Graph | Live network: coordinator on top, a cluster per team (lead above its agents), messages in flight; `g` groups by host |
 | 6 | Room | What each agent is doing now and what it is asking for |
 | 7 | Lanes | Scrolling per-agent timelines with cross-agent messages |
 | 8 | Channel | IRC-style live chat between agents |

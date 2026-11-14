@@ -914,6 +914,19 @@ pub fn build_snapshot<'a>(
         }
     }
     disambiguate_names(&mut snap, &sessions);
+    // A task is answered once its agent finished, even without a returned
+    // result (background agents hand back later, outside the spawn call).
+    for m in snap
+        .messages
+        .iter_mut()
+        .filter(|m| m.kind == MsgKind::Task && m.answered_at.is_none())
+    {
+        if let Some(a) = snap.agents.iter().find(|a| a.id == m.to) {
+            if a.state == AgentState::Done {
+                m.answered_at = Some(a.last_activity.max(m.ts));
+            }
+        }
+    }
     snap.messages.sort_by_key(|m| m.ts);
     if snap.messages.len() > MAX_MESSAGES {
         snap.messages.drain(..snap.messages.len() - MAX_MESSAGES);

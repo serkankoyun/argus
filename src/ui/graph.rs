@@ -87,11 +87,19 @@ fn draw_graph(buf: &mut Buffer, area: Rect, app: &App) {
         return;
     }
     let with_you = s.messages.iter().any(|m| m.to == YOU || m.from == YOU);
-    let (nodes, groups) = layout::place(s, area, NODE_W, NODE_H, with_you, app.group_by_team);
+    // With a coordinator or known teams, show the hierarchy: coordinator on
+    // top, a cluster per team, leads above their agents. `g` toggles hosts.
+    let hierarchy =
+        (s.agents.iter().any(|a| a.coordinator) || !s.team_labels.is_empty()) != app.group_by_team;
+    let (nodes, groups) = if hierarchy {
+        layout::place_teams(s, area, NODE_W, NODE_H)
+    } else {
+        layout::place(s, area, NODE_W, NODE_H, with_you, app.group_by_team)
+    };
     let pos: HashMap<&str, &Node> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     for g in &groups {
-        let host = if app.group_by_team {
+        let host = if app.group_by_team || hierarchy {
             None
         } else {
             s.hosts.iter().find(|h| h.name == g.host)
@@ -102,7 +110,13 @@ fn draw_graph(buf: &mut Buffer, area: Rect, app: &App) {
         };
         let title = Line::from(vec![
             Span::styled(format!(" {dot} "), Style::new().fg(c)),
-            Span::styled(g.host.clone(), Style::new().fg(CYAN)),
+            Span::styled(
+                match s.team_label(&g.host) {
+                    Some(l) if hierarchy => format!("{l} · {}", g.host),
+                    _ => g.host.clone(),
+                },
+                Style::new().fg(CYAN),
+            ),
             Span::styled(
                 host.and_then(|h| h.rtt_ms)
                     .map(|r| format!(" · {r}ms "))

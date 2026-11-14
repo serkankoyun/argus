@@ -400,6 +400,9 @@ agent's id, an unnamed agent takes its name from a description shaped like
 `<agent-name> · <run> · <task>`, and an agent whose name gives no team inherits its
 parent's team. Team cards list each lead with its agents indented below it.
 
+**Open requests keep finished work as "working · 31m"** — Fixed in v0.1.24: a task counts as
+answered when its agent finishes (hand-back included), and targets are named, not shown as ids.
+
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
 marks it read, or when the sender sends a newer one; unanswered messages leave the list
