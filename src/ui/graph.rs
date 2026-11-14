@@ -260,7 +260,7 @@ fn draw_node(buf: &mut Buffer, r: Rect, n: &Node, app: &App) {
         ]),
         Line::styled(trunc(&now_text(app, a), inner_w), Style::new().fg(DIM)),
         Line::from(vec![
-            Span::styled(bar(a.context_pct(), 5, '▰', '▱'), Style::new().fg(c)),
+            Span::styled(bar(a.context_pct(), 5, '█', '░'), Style::new().fg(c)),
             Span::styled(
                 format!(" {}% ${:.2}", a.context_pct(), a.cost_usd),
                 Style::new().fg(DIM),

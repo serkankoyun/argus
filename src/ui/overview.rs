@@ -121,7 +121,7 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
             Cell::from(Span::styled(
                 format!(
                     "{} {:>2}%",
-                    bar(a.context_pct(), 8, '▰', '▱'),
+                    bar(a.context_pct(), 8, '█', '░'),
                     a.context_pct()
                 ),
                 Style::new().fg(level(a.context_pct())),
@@ -173,7 +173,7 @@ fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
                 Span::styled(" ──", Style::new().fg(DIM)),
                 Span::styled(format!("{} ", app.i18n.t(m.kind.key())), Style::new().fg(c)),
                 Span::styled(trunc(&m.label, 44), Style::new().fg(FG)),
-                Span::styled(" ──▶ ", Style::new().fg(DIM)),
+                Span::styled(" ──► ", Style::new().fg(DIM)),
                 Span::styled(
                     trunc(name(app, &m.to).as_str(), 14),
                     Style::new().fg(if m.to == crate::model::YOU {

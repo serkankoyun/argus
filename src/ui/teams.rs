@@ -136,7 +136,7 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
         ]),
         Line::from(vec![
             Span::styled(format!("{} ", i.t("teams-msgs")), Style::new().fg(DIM)),
-            Span::styled(format!("⟲ {inner}  "), Style::new().fg(CYAN)),
+            Span::styled(format!("⇄ {inner}  "), Style::new().fg(CYAN)),
             Span::styled(format!("→ {out}  "), Style::new().fg(PURPLE)),
             Span::styled(format!("← {inbound}"), Style::new().fg(PURPLE)),
             if approvals > 0 {
@@ -184,7 +184,7 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
     }
     let title = format!("{}  · {}", team, hosts.join(", "));
     let hint = if cursor {
-        format!(" ⏎ {} ", i.t("teams-open"))
+        format!(" enter: {} ", i.t("teams-open"))
     } else if selected {
         format!(" {} ", i.t("teams-filtered"))
     } else {

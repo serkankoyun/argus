@@ -93,9 +93,9 @@ fn draw_sequence(buf: &mut Buffer, area: Rect, app: &App) {
             buf.set_string(x, y + 1, "─", style);
         }
         if b > a {
-            buf.set_string(hi - 1, y + 1, "▶", style);
+            buf.set_string(hi - 1, y + 1, "►", style);
         } else {
-            buf.set_string(lo + 1, y + 1, "◀", style);
+            buf.set_string(lo + 1, y + 1, "◄", style);
         }
         let label = trunc(&format!(" {} {} ", app.i18n.t(m.kind.key()), m.label), 44);
         let len = label.chars().count() as u16;
@@ -169,7 +169,7 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &App) {
         Line::from(vec![
             Span::styled(format!("{} ", i.t(m.kind.key())), bold().fg(c)),
             Span::styled(name(app, &m.from), bold().fg(FG)),
-            Span::styled(" ──▶ ", Style::new().fg(DIM)),
+            Span::styled(" ──► ", Style::new().fg(DIM)),
             Span::styled(
                 name(app, &m.to),
                 bold().fg(if m.to == YOU { AMBER } else { PURPLE }),

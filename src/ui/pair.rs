@@ -112,7 +112,7 @@ fn draw_terminal(frame: &mut Frame, area: Rect, app: &App, a: &Agent, between: &
             m.ts + TRAVEL,
             Line::styled(
                 format!(
-                    "◀ {}: \"{}\"",
+                    "◄ {}: \"{}\"",
                     name(app, &m.from),
                     if m.text.is_empty() { &m.label } else { &m.text }
                 ),
@@ -180,7 +180,7 @@ fn draw_channel(
         let ltr = m.from == left.id;
         let x = if ltr { p } else { 1.0 - p };
         let pos = ((inner_w.saturating_sub(2)) as f64 * x).round() as usize;
-        let glyph = if ltr { "◆▶" } else { "◀◆" };
+        let glyph = if ltr { "◆►" } else { "◄◆" };
         let before: String = track.iter().take(pos).collect();
         let after: String = track.iter().skip(pos + 2).collect();
         track_line = Line::from(vec![
@@ -221,7 +221,7 @@ fn draw_channel(
         let c = if ltr { PURPLE } else { CYAN };
         let indent = if ltr { "" } else { "   " };
         lines.push(Line::styled(
-            format!("{indent}{} ▶ {}", name(app, &m.from), name(app, &m.to)),
+            format!("{indent}{} ► {}", name(app, &m.from), name(app, &m.to)),
             Style::new().fg(c),
         ));
         lines.push(Line::raw(format!(

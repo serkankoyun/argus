@@ -193,7 +193,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         vec![
             key("←→"),
             label("key-team-move"),
-            key("⏎"),
+            key("enter"),
             label("teams-open"),
             key("1-0"),
             label("key-views"),
@@ -204,7 +204,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
             label("key-views"),
             key("↑↓"),
             label("key-select"),
-            key("⏎"),
+            key("enter"),
             label("key-detail"),
         ];
         if app.team.is_some() && app.view == View::Overview {

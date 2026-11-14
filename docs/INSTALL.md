@@ -177,10 +177,10 @@ Essential keys:
 | Key | Action |
 |---|---|
 | `1`–`9`, `0` or `F1`–`F10` | Jump to a view (Overview, Sequence, Agent, Fleet, Graph, Room, Lanes, Channel, Task map, Pair); you can also click the tabs |
-| `T` | Teams view; `←→` choose a team, `⏎` open it, `esc` back to all teams |
+| `T` | Teams view; `←→` choose a team, `Enter` open it, `esc` back to all teams |
 | `t` | Filter every view to the next team |
 | `↑` `↓` | Select an agent (the selection follows you across views) |
-| `⏎` | Agent detail |
+| `Enter` | Agent detail |
 | `g` | Group Graph and Room by team instead of host |
 | `z` | Zoom the Lanes timeline |
 | `space` | Pause / resume |
@@ -306,6 +306,11 @@ one, or call this Argus by its full path.
 **"No recent Claude Code sessions"** — Check that sessions exist:
 `ls ~/.claude/projects/`. If Claude Code uses another config folder, start Argus with
 `--claude-dir` or set `CLAUDE_CONFIG_DIR`. Only sessions modified in the last 24 hours are shown.
+
+**Parts of the screen disappear or shift when switching views (Windows)** — Some fonts draw
+certain symbols two cells wide. Since v0.1.1 Argus avoids those symbols and repaints the whole
+screen on every view change; update if you see this. Using Cascadia Mono or JetBrains Mono
+in Windows Terminal also helps.
 
 **Number keys do not switch views** — Use `F1`–`F10`, `Tab` / `Shift+Tab`, or click the
 tabs with the mouse. Start Argus with `argus --debug-keys` to see which key it receives

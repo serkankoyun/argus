@@ -149,7 +149,14 @@ fn print_snapshot(mut source: Box<dyn Source>, wait: u64) -> Result<()> {
 
 fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let mut last = Instant::now();
+    let mut shown = (app.view, app.team.clone());
     while !app.should_quit {
+        // Repaint everything when the screen changes, so a terminal that draws a
+        // glyph wider than expected cannot leave stale cells behind.
+        if shown != (app.view, app.team.clone()) {
+            terminal.clear()?;
+            shown = (app.view, app.team.clone());
+        }
         terminal.draw(|frame| ui::draw(frame, app))?;
         let timeout = FRAME.saturating_sub(last.elapsed());
         if event::poll(timeout)? {

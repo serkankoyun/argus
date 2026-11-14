@@ -96,10 +96,10 @@ argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
 | `1`–`0` / `F1`–`F10` / click a tab | Jump to a view |
 | `tab` / `shift+tab` | Next / previous view |
 | `↑` `↓` / `j` `k` | Select agent (the selection follows you across views) |
-| `⏎` / `esc` | Agent detail / back to Overview |
+| `Enter` / `esc` | Agent detail / back to Overview |
 | `z` | Zoom the Lanes timeline |
 | `t` / `T` | Filter all views to a team / open the Teams view |
-| `←→` `⏎` (Teams) | Pick a team card and open it; `esc` on the Overview returns to all teams |
+| `←→` `Enter` (Teams) | Pick a team card and open it; `esc` on the Overview returns to all teams |
 | `g` | Group Graph and Room by team instead of host |
 | `a` / `r` | Approve / reject the pending permission request |
 | `:` | Command bar: `connect user@host`, `msg <text>`, `run <dir> <prompt>`, `view <name>`, `lang tr` |
