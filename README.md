@@ -21,7 +21,7 @@ conversation between your agents.
 
 ## Features (planned for v1.0)
 
-- **Teams** — agents grouped by Agent Teams team (or project); one card per team, cross-team requests, and `t` filters every view to one team
+- **Teams** — agents grouped by Agent Teams team (or project); one card per team, cross-team requests, and `t` opens it (`Enter` filters every view to the chosen team)
 - **Ten views, one keystroke apart** — switch instantly with `1`–`0` or `tab`; the selected agent follows you
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
@@ -102,7 +102,7 @@ argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
 | `↑` `↓` / `j` `k` | Select agent (the selection follows you across views) |
 | `Enter` / `esc` | Agent detail / back to Overview |
 | `z` | Zoom the Lanes timeline |
-| `t` / `T` | Filter all views to a team / open the Teams view |
+| `t` / `T` | Open the Teams view (`Enter` filters all views to that team) / cycle the team filter |
 | `s` | Filter all views to one host (cycles); on Fleet, `↑↓` + `Enter` picks a host |
 | `f` / `H` | Show finished agents in the views / open History (finished agents are hidden by default) |
 | `←→` `Enter` (Teams) | Pick a team card and open it; `esc` on the Overview returns to all teams |

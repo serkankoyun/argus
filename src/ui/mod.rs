@@ -140,7 +140,7 @@ fn tab_titles(app: &App) -> Vec<String> {
         .map(|(i, v)| {
             let n = match i {
                 9 => "0".to_string(),
-                10 => "T".to_string(),
+                10 => "t".to_string(),
                 11 => "H".to_string(),
                 _ => (i + 1).to_string(),
             };
@@ -215,6 +215,14 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
             label("key-select"),
             key("enter"),
             label("key-detail"),
+            key("s"),
+            label("key-host"),
+            key("f"),
+            label(if app.show_finished {
+                "key-hide-done"
+            } else {
+                "key-show-done"
+            }),
         ];
         if (app.team.is_some() || app.host.is_some()) && app.view == View::Overview {
             v.extend([key("esc"), label("key-leave-team")]);

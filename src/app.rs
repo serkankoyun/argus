@@ -507,7 +507,8 @@ impl App {
         match key.code {
             KeyCode::Char(':') => self.input = Some(":".into()),
             KeyCode::Char('>') => self.input = Some(">".into()),
-            KeyCode::Char('t') => self.cycle_team(),
+            // `t` opens Teams (pick one with Enter); `T` cycles the team filter.
+            KeyCode::Char('t') => self.view = View::Teams,
             KeyCode::Char('s') => self.cycle_host(),
             KeyCode::Char('f') => {
                 self.show_finished = !self.show_finished;
@@ -515,7 +516,7 @@ impl App {
             }
             KeyCode::Char('H') => self.view = View::History,
             KeyCode::F(12) => self.view = View::History,
-            KeyCode::Char('T') => self.view = View::Teams,
+            KeyCode::Char('T') => self.cycle_team(),
             KeyCode::Char('g') => self.group_by_team = !self.group_by_team,
             KeyCode::Char('a') => self.decide(true),
             KeyCode::Char('r') => self.decide(false),

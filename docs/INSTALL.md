@@ -179,8 +179,8 @@ Essential keys:
 | Key | Action |
 |---|---|
 | `1`–`9`, `0` or `F1`–`F10` | Jump to a view (Overview, Sequence, Agent, Fleet, Graph, Room, Lanes, Channel, Task map, Pair); you can also click the tabs |
-| `T` | Teams view; `←→` choose a team, `Enter` open it, `esc` back to all teams |
-| `t` | Filter every view to the next team |
+| `t` | Teams view; `←→` choose a team, `Enter` open it, `esc` back to all teams |
+| `T` | Filter every view to the next team (since v0.1.8; earlier `t` and `T` were swapped) |
 | `s` | Filter every view to the next host; on the Fleet view `↑↓` + `Enter` picks one |
 | `f` | Show / hide finished agents (hidden by default) |
 | `H` | History: finished agents with duration, cost and outcome |

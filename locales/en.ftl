@@ -222,7 +222,7 @@ unknown-cmd = unknown command: { $cmd }
 ## Teams
 view-teams = Teams
 team-label = team
-key-team = team
+key-team = next team
 teams-agents = agents
 teams-tasks = { $n } open tasks
 teams-msgs = msgs 15m

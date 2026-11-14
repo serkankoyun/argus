@@ -220,7 +220,7 @@ unknown-cmd = bilinmeyen komut: { $cmd }
 ## Teams
 view-teams = Takımlar
 team-label = takım
-key-team = takım
+key-team = sonraki takım
 teams-agents = ajan
 teams-tasks = { $n } açık görev
 teams-msgs = mesaj 15dk
