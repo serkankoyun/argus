@@ -169,7 +169,11 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
         ),
     ];
     let room = area.height.saturating_sub(6) as usize;
+    // Names usually repeat the team ("qa-karar-kural-liste-alimi" in karar-kural):
+    // drop it inside the card and give the name more room.
+    let name_w = (area.width as usize / 2).clamp(12, 34);
     for a in members.iter().take(room) {
+        let short_name = compact_name(&a.name, team);
         let c = pulse_color(app, a.state);
         let spin = if a.state == AgentState::Working {
             spinner(app)
@@ -178,9 +182,15 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
         };
         lines.push(Line::from(vec![
             Span::styled(format!("{spin} "), Style::new().fg(c)),
-            Span::styled(format!("{:<13}", trunc(&a.name, 12)), bold().fg(FG)),
             Span::styled(
-                trunc(&now_text(app, a), area.width.saturating_sub(20) as usize),
+                format!("{:<w$} ", trunc(&short_name, name_w), w = name_w),
+                bold().fg(FG),
+            ),
+            Span::styled(
+                trunc(
+                    &now_text(app, a),
+                    area.width.saturating_sub(name_w as u16 + 6) as usize,
+                ),
                 Style::new().fg(DIM),
             ),
         ]));
@@ -266,4 +276,33 @@ fn draw_cross(frame: &mut Frame, area: Rect, app: &App) {
             .block(pane(i.t("teams-cross"), false)),
         area,
     );
+}
+
+/// `qa-karar-kural-liste-alimi` in team `karar-kural` -> `qa-liste-alimi`.
+pub fn compact_name(name: &str, team: &str) -> String {
+    if team.is_empty() || name == team {
+        return name.to_string();
+    }
+    let mid = format!("-{team}-");
+    if let Some(i) = name.find(&mid) {
+        return format!("{}-{}", &name[..i], &name[i + mid.len()..]);
+    }
+    if let Some(rest) = name.strip_prefix(&format!("{team}-")) {
+        return rest.to_string();
+    }
+    name.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn team_is_dropped_from_member_names() {
+        use super::compact_name;
+        assert_eq!(
+            compact_name("qa-karar-kural-liste-alimi", "karar-kural"),
+            "qa-liste-alimi"
+        );
+        assert_eq!(compact_name("provizyon-x", "provizyon"), "x");
+        assert_eq!(compact_name("Claimer#1b4b", "ekipsiz"), "Claimer#1b4b");
+    }
 }
