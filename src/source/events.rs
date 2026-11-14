@@ -325,7 +325,8 @@ impl EventLog {
                 .iter()
                 .filter_map(|k| self.sessions.get(*k))
                 .any(|l| mode_never_asks(&l.mode) && !l.asking);
-            if quiet && a.state == AgentState::Waiting {
+            // (Waiting on its own background job is not an approval.)
+            if quiet && a.state == AgentState::Waiting && !a.now.starts_with("[bg") {
                 a.state = AgentState::Working;
                 approved.insert(a.id.clone());
             }

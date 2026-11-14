@@ -92,6 +92,32 @@ impl ClaudeSource {
     }
 }
 
+/// Nested subagents: a team lead's own subagents are stored next to it, flat
+/// under the session, so the file layout names the session as everyone's
+/// parent. The real parent is whoever's spawn result returned the agent's id.
+fn resolve_parents(files: &mut HashMap<PathBuf, Tail>) {
+    let mut spawner: HashMap<String, String> = HashMap::new();
+    for t in files.values() {
+        let s = &t.session;
+        let root = s.id.split('/').next().unwrap_or("");
+        for sp in &s.spawns {
+            if let Some(aid) = &sp.agent_id {
+                spawner.insert(format!("{root}/{aid}"), s.id.clone());
+            }
+        }
+    }
+    for t in files.values_mut() {
+        let s = &mut t.session;
+        if s.parent.is_some() {
+            if let Some(p) = spawner.get(&s.id) {
+                if *p != s.id {
+                    s.parent = Some(p.clone());
+                }
+            }
+        }
+    }
+}
+
 fn recent(p: &Path) -> bool {
     std::fs::metadata(p)
         .and_then(|m| m.modified())
@@ -110,6 +136,7 @@ impl Source for ClaudeSource {
                 .or_insert_with(|| Tail::new(&path, parent));
             tail.read_new();
         }
+        resolve_parents(&mut self.files);
         let host = self.probe.sample();
         let mut snap = build_snapshot(
             self.files.values().map(|t| &t.session),
@@ -765,7 +792,7 @@ pub fn build_snapshot<'a>(
         let alive = is_alive(&s.cwd, live_cwds);
         let state = infer_state(s, alive, now, &sessions, never_asks(s, &sessions));
         let (tool, target) = match s.pending.values().max_by_key(|p| p.ts) {
-            None if s.background.is_some() && state == AgentState::Working => {
+            None if s.background.is_some() && state == AgentState::Waiting => {
                 let (at, cmd) = s.background.clone().unwrap_or_default();
                 (
                     "Bash".to_string(),
@@ -1049,7 +1076,13 @@ fn task_for(s: &Session, all: &[&Session]) -> String {
     if s.parent.is_none() {
         return s.last_prompt.clone();
     }
-    let desc = spawn_description(s, all).unwrap_or_default();
+    let mut desc = spawn_description(s, all).unwrap_or_default();
+    // "<agent-name> · <run> · <task>": the name is shown elsewhere.
+    if let Some((name, rest)) = desc.split_once(" · ") {
+        if !name.trim().contains(' ') {
+            desc = rest.to_string();
+        }
+    }
     if !task_text(&desc).is_empty() {
         return desc;
     }
@@ -1075,6 +1108,13 @@ fn agent_name(s: &Session, all: &[&Session]) -> String {
     if let Some(parent) = &s.parent {
         if let Some(p) = all.iter().find(|p| &p.id == parent) {
             if let Some(sp) = spawn_of(p, s) {
+                // Convention for unnamed agents: "<agent-name> · <run> · <task>".
+                if let Some((name, _)) = sp.description.split_once(" · ") {
+                    let name = name.trim();
+                    if !name.is_empty() && !name.contains(' ') {
+                        return name.to_string();
+                    }
+                }
                 let base = if sp.agent_type.is_empty() || sp.agent_type == "general-purpose" {
                     &sp.description
                 } else {
@@ -1121,7 +1161,7 @@ fn infer_state(
         .as_ref()
         .is_some_and(|(at, _)| now - at < 6 * 3600 * 1000)
     {
-        return AgentState::Working;
+        return AgentState::Waiting;
     }
     // A subagent is done once its parent received the result, unless it was
     // resumed afterwards (a later message continues the same subagent).
@@ -1527,7 +1567,8 @@ mod tests {
         );
         c.ingest(&json!({"type":"assistant","timestamp":ts(4),"message":{"role":"assistant","content":[{"type":"text","text":"waiting"}]}}));
         let snap = build_snapshot([&c].into_iter(), "box", &[], T0 + 30 * 60_000);
-        assert_eq!(snap.agents[0].state, AgentState::Working);
+        assert_eq!(snap.agents[0].state, AgentState::Waiting);
+        assert!(snap.agents[0].now.starts_with("[bg"));
         c.ingest(
             &json!({"type":"assistant","timestamp":ts(5),"message":{"role":"assistant","content":[
             {"type":"tool_use","id":"h1","name":"SubagentHandback","input":{"report":"done"}}]}}),

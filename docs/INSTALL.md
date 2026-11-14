@@ -394,6 +394,12 @@ back its report shows as working** — Fixed in v0.1.17: a command started with
 `run_in_background` keeps the agent working (`[bg 3m10s] cmd`), and a `SubagentHandback`
 call finishes it.
 
+**Agents started by a team lead show the coordinator as their parent, as `agent-…`, or in
+the default group** — Fixed in v0.1.23: the parent is whoever's spawn result returned the
+agent's id, an unnamed agent takes its name from a description shaped like
+`<agent-name> · <run> · <task>`, and an agent whose name gives no team inherits its
+parent's team. Team cards list each lead with its agents indented below it.
+
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
 marks it read, or when the sender sends a newer one; unanswered messages leave the list

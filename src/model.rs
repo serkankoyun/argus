@@ -206,7 +206,7 @@ pub fn task_text(task: &str) -> &str {
     let digits = token.chars().filter(|c| c.is_ascii_digit()).count();
     let looks_like_id = token.len() >= 12 && digits >= 8 && token.contains('-');
     if looks_like_id {
-        t[token_end..].trim_start_matches([' ', ':', '-'])
+        t[token_end..].trim_start_matches([' ', ':', '-', '·'])
     } else {
         t
     }
@@ -539,6 +539,10 @@ mod tests {
             "liste adimi"
         );
         assert_eq!(task_text("R-20261114-1538-kurulum-si"), "");
+        assert_eq!(
+            task_text("R-20261114-1538-x · Gezinme testi"),
+            "Gezinme testi"
+        );
         assert_eq!(task_text("Fix the login form"), "Fix the login form");
     }
 

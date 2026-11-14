@@ -263,6 +263,11 @@ impl Rules {
     }
 
     pub fn team_of(&self, name: &str) -> Option<String> {
+        self.code_of(name).or_else(|| self.default.clone())
+    }
+
+    /// The team a name encodes, without falling back to the default.
+    pub fn code_of(&self, name: &str) -> Option<String> {
         let rest = self
             .strip
             .iter()
@@ -281,7 +286,6 @@ impl Rules {
             .filter(|(code, _)| fits(code))
             .max_by_key(|(code, _)| code.len())
             .map(|(_, team)| team.to_string())
-            .or_else(|| self.default.clone())
     }
 
     pub fn apply(&self, snap: &mut Snapshot) {
@@ -313,7 +317,7 @@ impl Rules {
                 }
             }
             if a.team.is_none() {
-                a.team = self.team_of(&a.name);
+                a.team = self.code_of(&a.name);
             }
             if let Some(prefix) = self.strip.iter().find(|p| a.name.starts_with(p.as_str())) {
                 let role = prefix.trim_end_matches('-');
@@ -331,6 +335,24 @@ impl Rules {
                     }
                 }
             }
+        }
+        // Agents whose name says nothing join the team of whoever started them
+        // (a team lead's helpers); the rest get the default group.
+        for _ in 0..4 {
+            let teams: std::collections::HashMap<String, String> = snap
+                .agents
+                .iter()
+                .filter(|a| !a.coordinator)
+                .filter_map(|a| Some((a.id.clone(), a.team.clone()?)))
+                .collect();
+            for a in snap.agents.iter_mut().filter(|a| a.team.is_none()) {
+                if let Some(t) = a.parent.as_ref().and_then(|p| teams.get(p)) {
+                    a.team = Some(t.clone());
+                }
+            }
+        }
+        for a in snap.agents.iter_mut().filter(|a| a.team.is_none()) {
+            a.team = self.default.clone();
         }
         for a in snap.agents.iter_mut() {
             if let Some(team) = &a.team {

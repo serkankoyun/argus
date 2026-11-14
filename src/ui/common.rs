@@ -200,6 +200,10 @@ pub fn now_text(app: &App, a: &Agent) -> String {
             plain_activity(app, &a.tool, target)
         }
         AgentState::Working => i.t("now-thinking"),
+        AgentState::Waiting if target.starts_with("[bg") => {
+            let cmd = target.split_once("] ").map_or(target, |(_, c)| c);
+            i.t_args("now-background", &[("what", cmd)])
+        }
         AgentState::Waiting => i.t_args(
             "now-waiting",
             &[("what", format!("{} {}", a.tool, target).trim())],

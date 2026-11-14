@@ -176,9 +176,22 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
             std::cmp::Reverse(a.last_activity),
         )
     });
-    // Each agent: who and what it does now, then the task it was given.
+    // Team leads first, each followed by the agents it started (indented).
+    let ids: Vec<&str> = listed.iter().map(|a| a.id.as_str()).collect();
+    let is_child = |a: &crate::model::Agent| a.parent.as_deref().is_some_and(|p| ids.contains(&p));
+    let mut ordered: Vec<(&crate::model::Agent, &str)> = Vec::new();
+    for a in listed.iter().filter(|a| !is_child(a)) {
+        ordered.push((a, ""));
+        for c in listed
+            .iter()
+            .filter(|c| c.parent.as_deref() == Some(a.id.as_str()))
+        {
+            ordered.push((c, "  "));
+        }
+    }
+    // Each agent: who, the task it was given, and what it does now.
     let room = (area.height.saturating_sub(4) as usize) / 3;
-    for a in listed.iter().take(room.max(1)) {
+    for (a, indent) in ordered.iter().take(room.max(1)) {
         let c = pulse_color(app, a.state);
         let glyph = if a.state == AgentState::Working {
             spinner(app)
@@ -190,24 +203,25 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
             _ => now_text(app, a),
         };
         lines.push(Line::from(vec![
+            Span::raw(indent.to_string()),
             Span::styled(format!("{glyph} "), Style::new().fg(c)),
-            Span::styled(trunc(&a.name, w.saturating_sub(2)), bold().fg(FG)),
+            Span::styled(trunc(&a.name, w.saturating_sub(4)), bold().fg(FG)),
         ]));
         let task = task_text(&a.task);
         if !task.is_empty() {
             lines.push(Line::styled(
-                format!("  {}", trunc(task, w.saturating_sub(2))),
+                format!("{indent}  {}", trunc(task, w.saturating_sub(4))),
                 Style::new().fg(FG),
             ));
         }
         lines.push(Line::styled(
-            format!("  {}", trunc(&activity, w.saturating_sub(2))),
+            format!("{indent}  {}", trunc(&activity, w.saturating_sub(4))),
             Style::new().fg(c),
         ));
     }
-    if listed.len() > room.max(1) {
+    if ordered.len() > room.max(1) {
         lines.push(Line::styled(
-            format!("  +{}", listed.len() - room.max(1)),
+            format!("  +{}", ordered.len() - room.max(1)),
             Style::new().fg(DIM),
         ));
     }
