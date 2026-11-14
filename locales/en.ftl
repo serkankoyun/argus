@@ -218,3 +218,17 @@ input-cmd-hint = :connect user@host · :msg <text> · :run <dir> <prompt> · :vi
 input-prompt-hint = prompt for a new Claude Code run in the selected agent's project · enter to start
 no-approvals = no pending approvals
 unknown-cmd = unknown command: { $cmd }
+
+## Teams
+view-teams = Teams
+team-label = team
+key-team = team
+teams-agents = agents
+teams-tasks = { $n } open tasks
+teams-msgs = msgs 15m
+teams-filtered = all views filtered to this team · t to change
+teams-cross = Requests between teams
+teams-from = FROM TEAM
+teams-to = TO TEAM
+teams-count = MSGS
+teams-latest = LATEST

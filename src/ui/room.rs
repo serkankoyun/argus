@@ -42,7 +42,7 @@ fn draw_room(buf: &mut Buffer, area: Rect, app: &App) {
         return;
     }
     let with_you = s.messages.iter().any(|m| m.to == YOU);
-    let (nodes, _) = layout::place(s, area, NODE_W, NODE_H + 1, with_you);
+    let (nodes, _) = layout::place(s, area, NODE_W, NODE_H + 1, with_you, app.group_by_team);
     let pos: HashMap<&str, &Node> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     draw_links(buf, area, app, &pos, false);
 

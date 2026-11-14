@@ -47,6 +47,14 @@ Screenshot docs/media/taskmap-tr.png
 Type "0"
 Sleep 4s
 Screenshot docs/media/pair-tr.png
+Type "T"
+Sleep 3s
+Screenshot docs/media/teams-tr.png
+Type "5"
+Type "g"
+Sleep 4s
+Screenshot docs/media/graph-teams-tr.png
+Type "g"
 Type "1"
 Sleep 2s
 Hide

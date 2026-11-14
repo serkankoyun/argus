@@ -27,11 +27,18 @@ pub fn place(
     node_w: u16,
     node_h: u16,
     with_you: bool,
+    by_team: bool,
 ) -> (Vec<Node>, Vec<Group>) {
     // Hosts in order of first appearance (agents are sorted by activity).
     let mut hosts: Vec<(String, Vec<(usize, usize)>)> = Vec::new();
     for (idx, depth) in s.tree_order() {
-        let host = &s.agents[idx].host;
+        let a = &s.agents[idx];
+        let host = if by_team {
+            a.team_key()
+        } else {
+            a.host.clone()
+        };
+        let host = &host;
         match hosts.iter_mut().find(|(h, _)| h == host) {
             Some((_, v)) => v.push((idx, depth)),
             None => hosts.push((host.clone(), vec![(idx, depth)])),

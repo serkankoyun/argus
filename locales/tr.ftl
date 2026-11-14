@@ -216,3 +216,17 @@ input-cmd-hint = :bağlan kullanıcı@sunucu · :mesaj <metin> · :çalıştır 
 input-prompt-hint = seçili ajanın projesinde yeni bir Claude Code işi için istem · başlatmak için enter
 no-approvals = bekleyen onay yok
 unknown-cmd = bilinmeyen komut: { $cmd }
+
+## Teams
+view-teams = Takımlar
+team-label = takım
+key-team = takım
+teams-agents = ajan
+teams-tasks = { $n } açık görev
+teams-msgs = mesaj 15dk
+teams-filtered = tüm ekranlar bu takıma filtreli · değiştirmek için t
+teams-cross = Takımlar arası istekler
+teams-from = İSTEYEN TAKIM
+teams-to = İSTENEN TAKIM
+teams-count = MESAJ
+teams-latest = SON

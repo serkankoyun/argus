@@ -21,10 +21,11 @@ pub enum View {
     Channel,
     TaskMap,
     Pair,
+    Teams,
 }
 
 impl View {
-    pub const ALL: [View; 10] = [
+    pub const ALL: [View; 11] = [
         View::Overview,
         View::Sequence,
         View::AgentDetail,
@@ -35,6 +36,7 @@ impl View {
         View::Channel,
         View::TaskMap,
         View::Pair,
+        View::Teams,
     ];
 
     /// Fluent message id for the view's name.
@@ -50,6 +52,7 @@ impl View {
             View::Channel => "view-channel",
             View::TaskMap => "view-taskmap",
             View::Pair => "view-pair",
+            View::Teams => "view-teams",
         }
     }
 
@@ -61,7 +64,14 @@ impl View {
 pub struct App {
     pub i18n: I18n,
     pub view: View,
+    /// What the views show: `full`, filtered to the selected team if any.
     pub snapshot: Snapshot,
+    /// Everything the data source reported.
+    pub full: Snapshot,
+    /// Team filter (`t` cycles through teams).
+    pub team: Option<String>,
+    /// Group Graph/Room by team instead of host (`g`).
+    pub group_by_team: bool,
     rx: Receiver<Snapshot>,
     controls: Sender<Control>,
     notices: Receiver<Notice>,
@@ -91,6 +101,9 @@ impl App {
             i18n,
             view: View::Overview,
             snapshot: Snapshot::default(),
+            full: Snapshot::default(),
+            team: None,
+            group_by_team: false,
             rx: ch.snapshots,
             controls: ch.controls,
             notices: ch.notices,
@@ -120,7 +133,8 @@ impl App {
             latest = Some(s);
         }
         if let Some(s) = latest {
-            self.snapshot = s;
+            self.full = s;
+            self.refilter();
             let valid = self
                 .selected
                 .as_ref()
@@ -128,6 +142,37 @@ impl App {
             if !valid {
                 self.selected = self.ordered().first().map(|a| a.id.clone());
             }
+        }
+    }
+
+    fn refilter(&mut self) {
+        if let Some(t) = &self.team {
+            if !self.full.teams().contains(t) {
+                self.team = None;
+            }
+        }
+        self.snapshot = match &self.team {
+            Some(t) => self.full.filtered(t),
+            None => self.full.clone(),
+        };
+    }
+
+    fn cycle_team(&mut self) {
+        let teams = self.full.teams();
+        self.team = match &self.team {
+            None => teams.first().cloned(),
+            Some(t) => teams
+                .iter()
+                .position(|x| x == t)
+                .and_then(|i| teams.get(i + 1).cloned()),
+        };
+        self.refilter();
+        let valid = self
+            .selected
+            .as_ref()
+            .is_some_and(|id| self.snapshot.agent(id).is_some());
+        if !valid {
+            self.selected = self.ordered().first().map(|a| a.id.clone());
         }
     }
 
@@ -306,6 +351,9 @@ impl App {
         match key.code {
             KeyCode::Char(':') => self.input = Some(":".into()),
             KeyCode::Char('>') => self.input = Some(">".into()),
+            KeyCode::Char('t') => self.cycle_team(),
+            KeyCode::Char('T') => self.view = View::Teams,
+            KeyCode::Char('g') => self.group_by_team = !self.group_by_team,
             KeyCode::Char('a') => self.decide(true),
             KeyCode::Char('r') => self.decide(false),
             KeyCode::Char('q') => self.should_quit = true,

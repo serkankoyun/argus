@@ -153,7 +153,7 @@ pub fn name(app: &App, id: &str) -> String {
     if id == crate::model::YOU {
         app.i18n.t("you")
     } else {
-        app.snapshot.name_of(id).to_string()
+        app.full.name_of(id).to_string()
     }
 }
 

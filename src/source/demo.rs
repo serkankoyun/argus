@@ -224,6 +224,7 @@ impl DemoSource {
             start,
             lang: usize::from(lang == "tr"),
             metrics,
+            answered: Vec::new(),
         }
     }
 }
@@ -363,7 +364,15 @@ impl Source for DemoSource {
                 cwd: "/srv/shop".into(),
                 model: a.model.into(),
                 parent: a.parent.map(Into::into),
-                team: Some("auth-refactor".into()),
+                team: Some(
+                    match a.id {
+                        "reviewer" | "sec-audit" | "perf-probe" => "review",
+                        "docs-writer" => "docs",
+                        "migrator" => "data-migration",
+                        _ => "auth-refactor",
+                    }
+                    .into(),
+                ),
                 state: a.state,
                 tool: tool.into(),
                 now: target.into(),

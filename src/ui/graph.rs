@@ -86,11 +86,15 @@ fn draw_graph(buf: &mut Buffer, area: Rect, app: &App) {
         return;
     }
     let with_you = s.messages.iter().any(|m| m.to == YOU || m.from == YOU);
-    let (nodes, groups) = layout::place(s, area, NODE_W, NODE_H, with_you);
+    let (nodes, groups) = layout::place(s, area, NODE_W, NODE_H, with_you, app.group_by_team);
     let pos: HashMap<&str, &Node> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     for g in &groups {
-        let host = s.hosts.iter().find(|h| h.name == g.host);
+        let host = if app.group_by_team {
+            None
+        } else {
+            s.hosts.iter().find(|h| h.name == g.host)
+        };
         let (dot, c) = match host {
             Some(h) if !h.connected => ("◐", AMBER),
             _ => ("●", GREEN),

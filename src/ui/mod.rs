@@ -12,6 +12,7 @@ mod pair;
 mod room;
 mod sequence;
 mod taskmap;
+mod teams;
 
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -45,6 +46,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::Channel => channel::draw(frame, body, app),
         View::TaskMap => taskmap::draw(frame, body, app),
         View::Pair => pair::draw(frame, body, app),
+        View::Teams => teams::draw(frame, body, app),
     }
     draw_footer(frame, footer, app);
 }
@@ -82,6 +84,12 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled("  │  ", Style::new().fg(DIM)),
         Span::raw(summary),
     ];
+    if let Some(t) = &app.team {
+        spans.push(Span::styled(
+            format!(" · {} {t}", app.i18n.t("team-label")),
+            Style::new().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ));
+    }
     let waiting = count(AgentState::Waiting);
     if waiting > 0 {
         spans.push(Span::styled(
@@ -118,7 +126,11 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
     let titles = View::ALL.iter().enumerate().map(|(i, v)| {
-        let n = if i == 9 { 0 } else { i + 1 };
+        let n = match i {
+            9 => "0".to_string(),
+            10 => "T".to_string(),
+            _ => (i + 1).to_string(),
+        };
         Line::from(format!("{n} {}", app.i18n.t(v.key())))
     });
     let tabs = Tabs::new(titles)

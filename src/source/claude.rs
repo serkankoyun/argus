@@ -116,6 +116,7 @@ impl Source for ClaudeSource {
             now,
         );
         merge_teams(&self.root, &mut snap);
+        assign_teams(&self.root, &mut snap);
         apply_requests(&mut snap, &hook::pending(&self.root));
         self.host_name = host.name.clone();
         snap.tasks = read_tasks(&self.root);
@@ -898,6 +899,62 @@ fn infer_state(s: &Session, alive: bool, now: Millis, all: &[&Session]) -> Agent
         LastKind::AssistantEnd | LastKind::None => AgentState::Idle,
         _ if age > 10 * 60_000 => AgentState::Stalled,
         _ => AgentState::Idle,
+    }
+}
+
+/// Assigns agents to Agent Teams teams from `teams/<team>/config.json`, and
+/// lets subagents inherit their parent's team.
+pub fn assign_teams(root: &Path, snap: &mut Snapshot) {
+    if let Ok(teams) = std::fs::read_dir(root.join("teams")) {
+        for team in teams.flatten() {
+            let name = team.file_name().to_string_lossy().into_owned();
+            let Ok(text) = std::fs::read_to_string(team.path().join("config.json")) else {
+                continue;
+            };
+            let Ok(cfg) = serde_json::from_str::<Value>(&text) else {
+                continue;
+            };
+            let team_name = first_of(&cfg, &["name", "teamName"]);
+            let team_name = if team_name.is_empty() {
+                name
+            } else {
+                team_name
+            };
+            // Every string in the config that equals an agent's id or name marks membership.
+            let mut strings = Vec::new();
+            collect_strings(&cfg, &mut strings);
+            for a in snap.agents.iter_mut() {
+                if a.team.is_none() && strings.iter().any(|s| *s == a.id || *s == a.name) {
+                    a.team = Some(team_name.clone());
+                }
+            }
+        }
+    }
+    for _ in 0..4 {
+        let parents: Vec<(String, Option<String>)> = snap
+            .agents
+            .iter()
+            .map(|a| (a.id.clone(), a.team.clone()))
+            .collect();
+        for a in snap.agents.iter_mut() {
+            if a.team.is_none() {
+                if let Some(p) = &a.parent {
+                    a.team = parents
+                        .iter()
+                        .find(|(id, _)| id == p)
+                        .and_then(|(_, t)| t.clone());
+                }
+            }
+        }
+    }
+}
+
+fn collect_strings(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::String(s) => out.push(s.clone()),
+        Value::Array(a) => a.iter().for_each(|x| collect_strings(x, out)),
+        Value::Object(o) => o.values().for_each(|x| collect_strings(x, out)),
+        _ => {}
     }
 }
 

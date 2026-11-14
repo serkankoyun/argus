@@ -136,6 +136,14 @@ impl Agent {
     pub fn tokens(&self) -> u64 {
         self.usage.billed()
     }
+
+    /// The group an agent belongs to: its Agent Teams team, else its project.
+    pub fn team_key(&self) -> String {
+        match &self.team {
+            Some(t) if !t.is_empty() => t.clone(),
+            _ => self.project.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -293,6 +301,81 @@ impl Snapshot {
             return "you";
         }
         self.agent(id).map(|a| a.name.as_str()).unwrap_or(id)
+    }
+
+    /// Team keys in a stable order (busiest first).
+    pub fn teams(&self) -> Vec<String> {
+        let mut out: Vec<(String, usize)> = Vec::new();
+        for a in &self.agents {
+            let k = a.team_key();
+            match out.iter_mut().find(|(t, _)| *t == k) {
+                Some((_, n)) => *n += 1,
+                None => out.push((k, 1)),
+            }
+        }
+        out.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        out.into_iter().map(|(t, _)| t).collect()
+    }
+
+    /// Only the agents of `team`, their tools and tasks, and every message
+    /// with at least one end in the team (cross-team messages included).
+    pub fn filtered(&self, team: &str) -> Snapshot {
+        let ids: Vec<&str> = self
+            .agents
+            .iter()
+            .filter(|a| a.team_key() == team)
+            .map(|a| a.id.as_str())
+            .collect();
+        let inside = |id: &str| ids.contains(&id);
+        let hosts: Vec<&str> = self
+            .agents
+            .iter()
+            .filter(|a| inside(&a.id))
+            .map(|a| a.host.as_str())
+            .collect();
+        Snapshot {
+            taken_at: self.taken_at,
+            hosts: self
+                .hosts
+                .iter()
+                .filter(|h| hosts.contains(&h.name.as_str()))
+                .cloned()
+                .collect(),
+            agents: self
+                .agents
+                .iter()
+                .filter(|a| inside(&a.id))
+                .cloned()
+                .collect(),
+            messages: self
+                .messages
+                .iter()
+                .filter(|m| inside(&m.from) || inside(&m.to))
+                .cloned()
+                .collect(),
+            tools: self
+                .tools
+                .iter()
+                .filter(|t| inside(&t.agent))
+                .cloned()
+                .collect(),
+            tasks: self
+                .tasks
+                .iter()
+                .filter(|t| {
+                    t.owner.as_deref().is_none_or(|o| {
+                        inside(o)
+                            || self
+                                .agents
+                                .iter()
+                                .any(|a| a.name == o && a.team_key() == team)
+                    })
+                })
+                .cloned()
+                .collect(),
+            metrics: self.metrics.clone(),
+            source: self.source.clone(),
+        }
     }
 
     /// Agents ordered as a tree: each root followed by its descendants,
