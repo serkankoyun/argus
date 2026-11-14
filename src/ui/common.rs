@@ -189,6 +189,11 @@ pub fn now_text(app: &App, a: &Agent) -> String {
     let i = &app.i18n;
     let target = a.now.as_str();
     match a.state {
+        AgentState::Working if target.is_empty() && !a.task.is_empty() => {
+            format!("{} · {}", a.tool, a.task)
+                .trim_start_matches(" · ")
+                .to_string()
+        }
         AgentState::Working if !a.tool.is_empty() && a.tool != "—" => {
             format!("{} {}", a.tool, target).trim().to_string()
         }
@@ -198,6 +203,7 @@ pub fn now_text(app: &App, a: &Agent) -> String {
             &[("what", format!("{} {}", a.tool, target).trim())],
         ),
         AgentState::Idle => i.t("now-idle"),
+        AgentState::Done if !a.task.is_empty() => format!("{} · {}", i.t("now-done"), a.task),
         AgentState::Done => i.t("now-done"),
         AgentState::Stalled => i.t_args("now-stalled", &[("what", a.tool.as_str())]),
     }

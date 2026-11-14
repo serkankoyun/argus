@@ -8,6 +8,8 @@
 //!   "teams": ["payments", "search-api"],
 //!   "teams_file": "/path/to/teams.json",
 //!   "aliases": { "old-code": "new-code" },
+//!   "labels": { "payments": "Payments and Billing" },
+//!   "label_key": "displayName",
 //!   "default": "no-team"
 //! }
 //! ```
@@ -17,7 +19,9 @@
 //! `code` (or `name`), at the top level or under `teams`. Agents that match no
 //! code get `default` when it is set. `aliases` maps retired codes to current
 //! ones, so agents from before a rename join the renamed team. Agents that
-//! already have a team keep it.
+//! already have a team keep it. Team display names come from `labels`, or from
+//! the `teams_file` objects' `label_key` field (default: `label`, `title`,
+//! `displayName`).
 
 use std::path::{Path, PathBuf};
 
@@ -34,6 +38,7 @@ pub struct Rules {
     strip: Vec<String>,
     teams: Vec<String>,
     aliases: Vec<(String, String)>,
+    labels: Vec<(String, String)>,
     default: Option<String>,
 }
 
@@ -64,6 +69,15 @@ impl Rules {
 
     pub fn from_value(v: &Value) -> Rules {
         let mut teams = strings(v.get("teams"));
+        let mut labels: Vec<(String, String)> = v
+            .get("labels")
+            .and_then(Value::as_object)
+            .map(|m| {
+                m.iter()
+                    .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
         if let Some(file) = v.get("teams_file").and_then(Value::as_str) {
             let extra = std::fs::read_to_string(file)
                 .ok()
@@ -72,6 +86,25 @@ impl Rules {
                 let mut codes = strings(Some(&extra));
                 codes.extend(strings(extra.get("teams")));
                 teams.extend(codes);
+                let keys: Vec<String> = match v.get("label_key").and_then(Value::as_str) {
+                    Some(k) => vec![k.to_string()],
+                    None => vec!["label".into(), "title".into(), "displayName".into()],
+                };
+                let items = extra
+                    .as_array()
+                    .or_else(|| extra.get("teams").and_then(Value::as_array));
+                for it in items.into_iter().flatten() {
+                    let code = it
+                        .get("code")
+                        .or_else(|| it.get("name"))
+                        .and_then(Value::as_str);
+                    let label = keys.iter().find_map(|k| it.get(k).and_then(Value::as_str));
+                    if let (Some(c), Some(l)) = (code, label) {
+                        if !labels.iter().any(|(x, _)| x == c) {
+                            labels.push((c.to_string(), l.to_string()));
+                        }
+                    }
+                }
             }
         }
         teams.sort();
@@ -87,6 +120,7 @@ impl Rules {
             })
             .unwrap_or_default();
         Rules {
+            labels,
             aliases,
             strip: strings(v.get("strip")),
             teams,
@@ -121,6 +155,7 @@ impl Rules {
     }
 
     pub fn apply(&self, snap: &mut Snapshot) {
+        snap.team_labels = self.labels.clone();
         for a in snap.agents.iter_mut() {
             if a.team.is_none() {
                 a.team = self.team_of(&a.name);
@@ -157,6 +192,10 @@ mod tests {
             Some("kurum-agi")
         );
         assert_eq!(r.team_of("qa-agent-x"), None);
+        let r = Rules::from_value(&json!({"teams": ["a"], "labels": {"a": "Team A"}}));
+        let mut snap = Snapshot::default();
+        r.apply(&mut snap);
+        assert_eq!(snap.team_label("a"), Some("Team A"));
         let r = Rules::from_value(&json!({"teams": ["a"]}));
         assert_eq!(r.team_of("zzz"), None);
     }

@@ -128,6 +128,10 @@ impl Source for ClaudeSource {
         }
         self.host_name = host.name.clone();
         snap.tasks = read_tasks(&self.root);
+        if snap.tasks.is_empty() {
+            // No Agent Teams task list: every subagent's assignment is a task.
+            snap.tasks = spawn_tasks(&snap);
+        }
         snap.hosts = vec![Host {
             name: host.name.clone(),
             region: "local".into(),
@@ -764,6 +768,7 @@ pub fn build_snapshot<'a>(
             git_branch: s.branch.clone(),
             files: s.files.clone(),
             transcript: s.transcript.clone(),
+            task: spawn_description(s, &sessions).unwrap_or_default(),
         });
         snap.tools.extend(s.tools.iter().cloned());
     }
@@ -1204,6 +1209,25 @@ fn merge_teams(root: &Path, snap: &mut Snapshot) {
         }
     }
     snap.messages.sort_by_key(|m| m.ts);
+}
+
+/// Tasks derived from subagent assignments, for setups without a task list.
+pub fn spawn_tasks(snap: &Snapshot) -> Vec<Task> {
+    snap.agents
+        .iter()
+        .filter(|a| a.parent.is_some() && !a.task.is_empty())
+        .map(|a| Task {
+            id: a.id.clone(),
+            title: a.task.clone(),
+            owner: Some(a.id.clone()),
+            status: match a.state {
+                AgentState::Done => TaskStatus::Done,
+                AgentState::Waiting | AgentState::Stalled => TaskStatus::Blocked,
+                _ => TaskStatus::InProgress,
+            },
+            blocked_by: Vec::new(),
+        })
+        .collect()
 }
 
 /// Reads Agent Teams task files.

@@ -66,6 +66,8 @@ pub struct Event {
     /// Display name of the agent (or of the spawned subagent).
     pub agent_name: String,
     pub team: String,
+    /// On a spawn event: the task given to the subagent.
+    pub desc: String,
 }
 
 /// Permission modes in which Claude Code never shows a permission prompt.
@@ -106,6 +108,7 @@ pub fn parse(line: &str) -> Option<Event> {
         spawned: text(&v, &["spawnedAgentId", "spawned_agent_id"]),
         agent_name: text(&v, &["agentName", "agent_name"]),
         team: text(&v, &["team", "teamName"]),
+        desc: text(&v, &["desc", "description", "task"]),
     })
 }
 
@@ -174,8 +177,8 @@ pub struct EventLog {
     dirs: Vec<PathBuf>,
     offsets: HashMap<PathBuf, (u64, Vec<u8>)>,
     pub sessions: HashMap<String, Live>,
-    /// Agent id -> (name, team) reported by events.
-    pub identities: HashMap<String, (String, String)>,
+    /// Agent id -> (name, team, task) reported by events.
+    pub identities: HashMap<String, (String, String, String)>,
 }
 
 impl EventLog {
@@ -209,6 +212,9 @@ impl EventLog {
             }
             if !e.team.is_empty() {
                 slot.1 = e.team.clone();
+            }
+            if !e.spawned.is_empty() && !e.desc.is_empty() {
+                slot.2 = e.desc.clone();
             }
         }
         if !e.spawned.is_empty() {
@@ -275,12 +281,15 @@ impl EventLog {
     pub fn apply(&self, snap: &mut Snapshot, now: Millis) {
         let mut approved = HashSet::new();
         for a in &mut snap.agents {
-            if let Some((name, team)) = self.identities.get(&a.id) {
+            if let Some((name, team, task)) = self.identities.get(&a.id) {
                 if !name.is_empty() {
                     a.name = name.clone();
                 }
                 if !team.is_empty() {
                     a.team = Some(team.clone());
+                }
+                if a.task.is_empty() && !task.is_empty() {
+                    a.task = task.clone();
                 }
             }
             let (root, sub) = match a.id.split_once('/') {

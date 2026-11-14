@@ -244,6 +244,8 @@ the team in agent names (for example `qa-payments-review`), describe it in
   "teams": ["payments", "search-api"],
   "teams_file": "/path/to/ownership/teams.json",
   "aliases": { "pay": "payments" },
+  "labels": { "payments": "Payments and Billing" },
+  "label_key": "displayName",
   "default": "no-team"
 }
 ```
@@ -251,7 +253,8 @@ the team in agent names (for example `qa-payments-review`), describe it in
 The first matching `strip` prefix is removed from the name, then the longest matching team
 code wins. `teams_file` (optional) adds codes from a JSON file: a list of strings, or objects
 with `code`, at the top level or under `teams`. A code matches whole name segments only. `aliases` maps retired codes to current
-ones, so agents from before a team rename stay with that team. Agents matching no code get
+ones, so agents from before a team rename stay with that team. Team display names come from
+`labels`, or from the field named by `label_key` in `teams_file` objects. Agents matching no code get
 `default`.
 Changes are picked up within a second; no restart needed.
 

@@ -393,6 +393,7 @@ impl Source for DemoSource {
                 git_branch: "feat/auth-refactor".into(),
                 files,
                 transcript,
+                task: String::new(),
             });
         }
         snap.tools.sort_by_key(|t| t.ts);

@@ -120,6 +120,9 @@ pub struct Agent {
     pub files: Vec<(String, i64, i64)>,
     /// Last few lines of the transcript: (timestamp, role, text).
     pub transcript: Vec<(Millis, String, String)>,
+    /// The task it was given (the spawn description), when known.
+    #[serde(default)]
+    pub task: String,
 }
 
 impl Agent {
@@ -286,9 +289,20 @@ pub struct Snapshot {
     pub metrics: Metrics,
     /// Human-readable note about the data source (e.g. "demo", "~/.claude").
     pub source: String,
+    /// Display names of teams: (team code, label).
+    #[serde(default)]
+    pub team_labels: Vec<(String, String)>,
 }
 
 impl Snapshot {
+    /// Display name of a team, if one is known.
+    pub fn team_label(&self, team: &str) -> Option<&str> {
+        self.team_labels
+            .iter()
+            .find(|(t, _)| t == team)
+            .map(|(_, l)| l.as_str())
+    }
+
     pub fn total_cost(&self) -> f64 {
         self.agents.iter().map(|a| a.cost_usd).sum()
     }
@@ -397,6 +411,7 @@ impl Snapshot {
                 .collect(),
             metrics: self.metrics.clone(),
             source: self.source.clone(),
+            team_labels: self.team_labels.clone(),
         }
     }
 
@@ -471,6 +486,7 @@ mod tests {
             git_branch: String::new(),
             files: vec![],
             transcript: vec![],
+            task: String::new(),
         }
     }
 

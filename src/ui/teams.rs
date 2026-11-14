@@ -201,7 +201,10 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
             Style::new().fg(DIM),
         ));
     }
-    let title = format!("{}  · {}", team, hosts.join(", "));
+    let title = match s.team_label(team) {
+        Some(label) => format!("{team} · {label}  · {}", hosts.join(", ")),
+        None => format!("{}  · {}", team, hosts.join(", ")),
+    };
     let hint = if cursor {
         format!(" enter: {} ", i.t("teams-open"))
     } else if selected {
