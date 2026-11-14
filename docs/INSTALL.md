@@ -320,6 +320,14 @@ one, or call this Argus by its full path.
 `ls ~/.claude/projects/`. If Claude Code uses another config folder, start Argus with
 `--claude-dir` or set `CLAUDE_CONFIG_DIR`. Only sessions modified in the last 24 hours are shown.
 
+**A remote host is connected and its agents are working, but little or nothing updates** —
+Before v0.1.4 Argus kept using whatever collector it had installed on the server the first
+time (`~/.cache/argus/argus`), even after you updated Argus on your own machine, so an old
+collector could miss newer Claude Code data. Update Argus locally; from v0.1.4 the server copy
+is replaced automatically when its version differs. To check what the server sees, run on the
+server: `~/.cache/argus/argus snapshot | head -c 2000`. If that shows no agents, the agents run
+as another user or with another config folder (`CLAUDE_CONFIG_DIR`): connect as that user.
+
 **Parts of the screen disappear or shift when switching views (Windows)** — Some fonts draw
 certain symbols two cells wide. Since v0.1.1 Argus avoids those symbols and repaints the whole
 screen on every view change; update if you see this. Using Cascadia Mono or JetBrains Mono

@@ -132,13 +132,15 @@ const CANDIDATES: &[&str] = &[
     "/home/linuxbrew/.linuxbrew/bin/argus",
 ];
 
-/// Shell script that prints `BIN=<path>` for the first usable argus (if any)
-/// and `OS=<uname -sm>`.
+/// Shell script that prints `BIN=<path>` for the first remote argus of exactly
+/// this version (if any) and `OS=<uname -sm>`. An older remote collector is
+/// never reused: it may not understand newer Claude Code data, so it gets replaced.
 pub fn probe_script() -> String {
     let list = CANDIDATES.join(" ");
+    let version = env!("CARGO_PKG_VERSION");
     format!(
         "for p in \"$(command -v argus 2>/dev/null)\" {list}; do \
-         if [ -n \"$p\" ] && [ -x \"$p\" ] && \"$p\" --version 2>/dev/null | grep -q '^argus '; then echo \"BIN=$p\"; break; fi; \
+         if [ -n \"$p\" ] && [ -x \"$p\" ] && [ \"$(\"$p\" --version 2>/dev/null)\" = 'argus {version}' ]; then echo \"BIN=$p\"; break; fi; \
          done; echo \"OS=$(uname -sm)\""
     )
 }
@@ -162,7 +164,7 @@ pub fn parse_probe(out: &str) -> (Option<String>, String) {
 /// Finds a usable remote argus, installing it if possible.
 fn remote_binary(target: &str, sh: &Arc<Mutex<Shared>>) -> Result<String, String> {
     let out = ssh(target)
-        .arg(probe_script())
+        .arg(sh_c(&probe_script()))
         .output()
         .map_err(|e| format!("ssh: {e}"))?;
     if !out.status.success() && out.stdout.is_empty() {
@@ -500,5 +502,6 @@ mod tests {
         let s = probe_script();
         assert!(s.contains("~/.local/bin/argus") && s.contains("~/.cache/argus/argus"));
         assert!(s.contains("command -v argus"));
+        assert!(s.contains(&format!("'argus {}'", env!("CARGO_PKG_VERSION"))));
     }
 }

@@ -83,7 +83,7 @@ Agent messages and "now" descriptions are shown in the user's language.
 ## Status (Nov 14, 2026)
 
 All ten views plus the Teams view are implemented and recorded from the demo in
-`docs/media/`. Live collector, SSH remotes (auto-install), command bar, headless runs,
+`docs/media/`. Live collector, SSH remotes (auto-install, replaced when its version differs), command bar, headless runs,
 `--resume` messages and the PermissionRequest approval hook are done and covered by
 end-to-end tests in CI (fixtures, SSH loopback, hook round trip).
 

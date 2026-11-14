@@ -55,6 +55,9 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
   downloads its own build (`download_script` in `src/source/remote.rs`). Non-interactive SSH
   shells often lack `~/.local/bin` or Homebrew on `PATH`; probe known install paths. Run remote
   scripts through `sh -c` so fish/zsh login shells do not break them.
+- **Remote collector versions**: never reuse a remote argus of another version; the probe
+  matches `argus <this version>` exactly and otherwise reinstalls. An old cached collector
+  silently showed stale or missing data after local updates.
 - **GitHub releases API**: `/releases/latest` ignores pre-releases; use `/releases?per_page=1`.
 - **Release packaging**: build archives in `dist/` and upload `dist/*` only; staging folder names
   contain dots and globbing `argus-*.*` picked them up.
