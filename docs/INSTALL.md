@@ -396,6 +396,19 @@ certain symbols two cells wide. Since v0.1.1 Argus avoids those symbols and repa
 screen on every view change; update if you see this. Using Cascadia Mono or JetBrains Mono
 in Windows Terminal also helps.
 
+**`scoop update` says "Your local changes to the following files would be overwritten by
+merge" (Cargo.toml, bucket/argus.json, docs/media/...)** — The Argus bucket is a copy of this
+repository and Git on Windows changed files in it (line endings), so Scoop cannot refresh it
+and keeps the old version. Re-add the bucket, then update:
+
+```powershell
+scoop bucket rm argus
+scoop bucket add argus https://github.com/serkankoyun/argus
+scoop update argus
+```
+
+Since v0.1.16 the repository disables line-ending conversion, so this should not come back.
+
 **`argus --version` still shows the old version after updating** — Work through these in
 order:
 

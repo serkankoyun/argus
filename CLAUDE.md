@@ -76,6 +76,8 @@ The maintainer opted in to automatic releases (Nov 14, 2026):
   `workflow_dispatch`, so automation chains dispatch the next workflow explicitly.
 - **Package updates**: `scoop update <app>` needs `scoop update` first; quit Argus before
   updating on Windows.
+- **The Scoop bucket is this repo**: Windows clones with line-ending conversion showed
+  local changes and `scoop update` refused to pull. `.gitattributes` has `* -text`.
 - **Name clash**: winget's `argus` packages are unrelated; reserve `SerkanKoyun.Argus`.
 
 ## Layout

@@ -1,0 +1,4 @@
+# Keep every file byte-for-byte as committed on all platforms. The Scoop bucket
+# is this repository: line-ending conversion on Windows clones made files look
+# modified and blocked `scoop update`.
+* -text
