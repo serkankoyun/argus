@@ -804,6 +804,7 @@ pub fn build_snapshot<'a>(
             files: s.files.clone(),
             transcript: s.transcript.clone(),
             task: task_for(s, &sessions),
+            ..Agent::default()
         });
         snap.tools.extend(s.tools.iter().cloned());
     }
