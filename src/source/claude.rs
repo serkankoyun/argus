@@ -323,6 +323,8 @@ pub struct Session {
     mode: String,
     /// Folder of the first transcript line: where the session was started.
     first_cwd: String,
+    /// The latest prompt typed by a person (not a tool result).
+    last_prompt: String,
     first_prompt: String,
     usage: Usage,
     cost: f64,
@@ -367,6 +369,7 @@ impl Session {
             agent_name: None,
             mode: String::new(),
             first_cwd: String::new(),
+            last_prompt: String::new(),
             team: None,
             first_prompt: String::new(),
             usage: Usage::default(),
@@ -553,11 +556,20 @@ impl Session {
         self.pending.insert(id, Pending { name, target, ts });
     }
 
+    /// Keeps prompts a person typed; skips harness notices (`<...>` blocks).
+    fn remember_prompt(&mut self, text: &str) {
+        let t = text.trim();
+        if !t.is_empty() && !t.starts_with('<') && !t.starts_with("Caveat:") {
+            self.last_prompt = first_sentence(t);
+        }
+    }
+
     fn ingest_user(&mut self, msg: &Value, ts: Millis) {
         if let Some(text) = msg.get("content").and_then(Value::as_str) {
             if self.first_prompt.is_empty() {
                 self.first_prompt = text.chars().take(2000).collect();
             }
+            self.remember_prompt(text);
             self.note(ts, "user", text);
             self.last_kind = LastKind::User;
             return;
@@ -615,6 +627,7 @@ impl Session {
                     if self.first_prompt.is_empty() {
                         self.first_prompt = t.chars().take(2000).collect();
                     }
+                    self.remember_prompt(t);
                     self.note(ts, "user", t);
                 }
                 _ => {}
@@ -790,7 +803,7 @@ pub fn build_snapshot<'a>(
             git_branch: s.branch.clone(),
             files: s.files.clone(),
             transcript: s.transcript.clone(),
-            task: spawn_description(s, &sessions).unwrap_or_default(),
+            task: task_for(s, &sessions),
         });
         snap.tools.extend(s.tools.iter().cloned());
     }
@@ -1014,6 +1027,36 @@ fn disambiguate_names(snap: &mut Snapshot, sessions: &[&Session]) {
         } else {
             format!("{}#{tail}", short(&desc, 22))
         };
+    }
+}
+
+/// First sentence (or line) of a text, at most 100 characters.
+fn first_sentence(t: &str) -> String {
+    let line = t
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("")
+        .trim();
+    let end = line.find(". ").map(|i| i + 1).unwrap_or(line.len());
+    short(&line[..end], 100)
+}
+
+/// What an agent works on: its spawn description (without a leading run id),
+/// else the first sentence of its prompt; for a top-level session, the latest
+/// prompt a person typed.
+fn task_for(s: &Session, all: &[&Session]) -> String {
+    if s.parent.is_none() {
+        return s.last_prompt.clone();
+    }
+    let desc = spawn_description(s, all).unwrap_or_default();
+    if !task_text(&desc).is_empty() {
+        return desc;
+    }
+    let prompt = first_sentence(&s.first_prompt);
+    if prompt.is_empty() {
+        desc
+    } else {
+        prompt
     }
 }
 

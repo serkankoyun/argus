@@ -254,6 +254,8 @@ the team in agent names (for example `qa-payments-review`), describe it in
   "short_names": true,
   "roles": { "developer": "Developer", "qa": "QA" },
   "coordinator": "Coordinator",
+  "tasks": { "Developer · refunds": "Refund API and its tests" },
+  "tasks_file": "/path/to/argus-tasks.json",
   "default": "no-team"
 }
 ```
@@ -265,8 +267,11 @@ ones, so agents from before a team rename stay with that team. Team display name
 `labels`, or from the field named by `label_key` in `teams_file` objects. With `short_names`,
 grouped agents are shown as `<role> · <work>` (`roles` gives readable role names), and
 `coordinator` names the sessions that start subagents and puts them in a group of their own.
-If `teams_file` points to a file that does not exist, its codes and names are skipped;
-`argus init` warns about it. Agents matching no code get
+`tasks` (or a `tasks_file` holding the same object) sets an agent's task line by its displayed
+name; otherwise the task is the spawn description without a leading run id, the first
+sentence of the agent's prompt, or, for a coordinator, the latest prompt you typed. A missing
+`teams_file`/`tasks_file` is skipped and reported in the footer and by `argus init`, which
+also keeps your existing rules and only adds to them. Agents matching no code get
 `default`.
 Changes are picked up within a second; no restart needed.
 

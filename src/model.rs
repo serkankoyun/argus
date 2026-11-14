@@ -123,6 +123,15 @@ pub struct Agent {
     /// The task it was given (the spawn description), when known.
     #[serde(default)]
     pub task: String,
+    /// Readable role ("Developer"), when team rules know it.
+    #[serde(default)]
+    pub role: String,
+    /// Display name of its team, when known.
+    #[serde(default)]
+    pub team_label: String,
+    /// Starts and steers other agents.
+    #[serde(default)]
+    pub coordinator: bool,
 }
 
 impl Agent {
@@ -184,6 +193,22 @@ impl MsgKind {
             MsgKind::Perm => "▲",
             MsgKind::Finding => "!",
         }
+    }
+}
+
+/// A task without a leading run id such as `R-20261114-1538-setup-wizard`
+/// (orchestrators prefix assignments with them; the detail view keeps it).
+/// Empty when the task is nothing but such an id.
+pub fn task_text(task: &str) -> &str {
+    let t = task.trim();
+    let token_end = t.find([' ', ':']).unwrap_or(t.len());
+    let token = &t[..token_end];
+    let digits = token.chars().filter(|c| c.is_ascii_digit()).count();
+    let looks_like_id = token.len() >= 12 && digits >= 8 && token.contains('-');
+    if looks_like_id {
+        t[token_end..].trim_start_matches([' ', ':', '-'])
+    } else {
+        t
     }
 }
 
@@ -292,6 +317,9 @@ pub struct Snapshot {
     /// Display names of teams: (team code, label).
     #[serde(default)]
     pub team_labels: Vec<(String, String)>,
+    /// Problems worth showing to the user: (message id, argument).
+    #[serde(default)]
+    pub warnings: Vec<(String, String)>,
 }
 
 impl Snapshot {
@@ -412,6 +440,7 @@ impl Snapshot {
             metrics: self.metrics.clone(),
             source: self.source.clone(),
             team_labels: self.team_labels.clone(),
+            warnings: self.warnings.clone(),
         }
     }
 
@@ -486,7 +515,7 @@ mod tests {
             git_branch: String::new(),
             files: vec![],
             transcript: vec![],
-            task: String::new(),
+            ..Agent::default()
         }
     }
 
@@ -501,6 +530,16 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(s.tree_order(), vec![(1, 0), (0, 1), (2, 0)]);
+    }
+
+    #[test]
+    fn run_ids_are_dropped_from_tasks() {
+        assert_eq!(
+            task_text("R-20261114-1538-kurulum-si liste adimi"),
+            "liste adimi"
+        );
+        assert_eq!(task_text("R-20261114-1538-kurulum-si"), "");
+        assert_eq!(task_text("Fix the login form"), "Fix the login form");
     }
 
     #[test]

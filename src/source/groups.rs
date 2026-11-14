@@ -48,6 +48,10 @@ pub struct Rules {
     short_names: bool,
     roles: Vec<(String, String)>,
     coordinator: Option<String>,
+    /// Agent name -> task, from `tasks` and `tasks_file`.
+    tasks: Vec<(String, String)>,
+    /// `teams_file` / `tasks_file` paths that do not exist.
+    missing: Vec<String>,
 }
 
 fn strings(v: Option<&Value>) -> Vec<String> {
@@ -127,6 +131,31 @@ impl Rules {
                     .collect()
             })
             .unwrap_or_default();
+        let mut missing = Vec::new();
+        let object = |x: Option<&Value>| -> Vec<(String, String)> {
+            x.and_then(Value::as_object)
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let mut tasks = object(v.get("tasks"));
+        if let Some(file) = v.get("tasks_file").and_then(Value::as_str) {
+            match std::fs::read_to_string(file)
+                .ok()
+                .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            {
+                Some(extra) => tasks.extend(object(Some(&extra))),
+                None => missing.push(file.to_string()),
+            }
+        }
+        if let Some(file) = v.get("teams_file").and_then(Value::as_str) {
+            if !Path::new(file).exists() {
+                missing.push(file.to_string());
+            }
+        }
         let roles = v
             .get("roles")
             .and_then(Value::as_object)
@@ -137,6 +166,8 @@ impl Rules {
             })
             .unwrap_or_default();
         Rules {
+            tasks,
+            missing,
             short_names: v
                 .get("short_names")
                 .and_then(Value::as_bool)
@@ -157,6 +188,53 @@ impl Rules {
                 .filter(|s| !s.is_empty())
                 .map(str::to_string),
         }
+    }
+
+    /// Every team code it knows, current and retired.
+    pub fn codes(&self) -> Vec<String> {
+        let mut c = self.teams.clone();
+        c.extend(self.aliases.iter().map(|(k, _)| k.clone()));
+        c
+    }
+
+    /// Merges a fresh suggestion into existing rules without losing anything:
+    /// new role prefixes are added, and suggested team codes only when no known
+    /// code already covers them (a known code being a segment prefix of them).
+    pub fn merge_suggestion(existing: &Value, suggestion: &Value) -> Value {
+        let mut out = existing.clone();
+        let known = Rules::from_value(existing).codes();
+        let covered = |code: &str| {
+            known.iter().any(|k| {
+                code == k
+                    || code.starts_with(&format!("{k}-"))
+                    || k.starts_with(&format!("{code}-"))
+            })
+        };
+        let Some(obj) = out.as_object_mut() else {
+            return suggestion.clone();
+        };
+        let mut strip = strings(obj.get("strip"));
+        for s in strings(suggestion.get("strip")) {
+            if !strip.contains(&s) {
+                strip.push(s);
+            }
+        }
+        obj.insert("strip".into(), Value::from(strip));
+        let mut teams = strings(obj.get("teams"));
+        for t in strings(suggestion.get("teams")) {
+            if !covered(&t) && !teams.contains(&t) {
+                teams.push(t);
+            }
+        }
+        obj.insert("teams".into(), Value::from(teams));
+        for key in ["default", "short_names", "roles"] {
+            if !obj.contains_key(key) {
+                if let Some(v) = suggestion.get(key) {
+                    obj.insert(key.into(), v.clone());
+                }
+            }
+        }
+        out
     }
 
     /// `<role> · <work>` for a name like `<role>-<team>-<work>`.
@@ -208,28 +286,56 @@ impl Rules {
 
     pub fn apply(&self, snap: &mut Snapshot) {
         snap.team_labels = self.labels.clone();
+        snap.warnings.extend(
+            self.missing
+                .iter()
+                .map(|m| ("warn-teams-file".to_string(), m.clone())),
+        );
         let parents: std::collections::HashSet<String> = snap
             .agents
             .iter()
             .filter_map(|a| a.parent.clone())
             .collect();
         for a in snap.agents.iter_mut() {
-            if let (Some(label), None) = (&self.coordinator, &a.parent) {
-                if parents.contains(&a.id) && a.team.is_none() {
-                    let project = a.name.split('#').next().unwrap_or("").to_string();
-                    a.name = format!("{label} · {project}");
-                    a.team = Some(label.clone());
-                    continue;
+            if let Some((_, t)) = self.tasks.iter().find(|(n, _)| *n == a.name) {
+                a.task = t.clone();
+            }
+            if a.parent.is_none() && parents.contains(&a.id) {
+                a.coordinator = true;
+                if let Some(label) = &self.coordinator {
+                    if a.team.is_none() {
+                        let project = a.name.split('#').next().unwrap_or("").to_string();
+                        a.name = format!("{label} · {project}");
+                        a.role = label.clone();
+                        a.team = Some(label.clone());
+                        continue;
+                    }
                 }
             }
             if a.team.is_none() {
                 a.team = self.team_of(&a.name);
+            }
+            if let Some(prefix) = self.strip.iter().find(|p| a.name.starts_with(p.as_str())) {
+                let role = prefix.trim_end_matches('-');
+                a.role = self
+                    .roles
+                    .iter()
+                    .find(|(k, _)| k == role)
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or_else(|| role.to_string());
             }
             if self.short_names {
                 if let Some(team) = a.team.clone() {
                     if let Some(short) = self.short_name(&a.name, &team) {
                         a.name = short;
                     }
+                }
+            }
+        }
+        for a in snap.agents.iter_mut() {
+            if let Some(team) = &a.team {
+                if let Some((_, l)) = self.labels.iter().find(|(c, _)| c == team) {
+                    a.team_label = l.clone();
                 }
             }
         }
@@ -271,10 +377,14 @@ pub fn infer(names: &[String], default: &str) -> Option<Value> {
     let mut teams: BTreeSet<String> = BTreeSet::new();
     for p in split.iter().filter(|p| roles.contains(p[0])) {
         let rest = &p[1..];
+        // The prefix with the most distinct jobs; on a tie the longer one
+        // ("karar" and "karar-kural" cover the same jobs: the code is
+        // "karar-kural"; "kabuk-tasarim" beats "kabuk-tasarim-kurulum" once
+        // more jobs show up).
         let best = (1..=rest.len().saturating_sub(1).min(3))
-            .rev()
             .map(|k| rest[..k].join("-"))
-            .find(|c| shared(c));
+            .filter(|c| shared(c))
+            .max_by_key(|c| (seen.get(c).map_or(0, |(_, j)| j.len()), c.len()));
         if let Some(c) = best {
             teams.insert(c);
         }
@@ -340,6 +450,17 @@ mod tests {
             Some("karar-kural")
         );
         assert!(infer(&["Claimer#1b4b".to_string()], "x").is_none());
+    }
+
+    #[test]
+    fn suggestions_never_drop_existing_rules() {
+        let existing = json!({"strip": ["qa-"], "teams": ["kabuk-tasarim"], "aliases": {"ag": "kurum-agi"}, "labels": {"x": "X"}});
+        let suggestion = json!({"strip": ["qa-", "mimar-"], "teams": ["kabuk-tasarim-kurulum", "ag-network", "tazminat"], "short_names": true});
+        let m = Rules::merge_suggestion(&existing, &suggestion);
+        assert_eq!(strings(m.get("teams")), vec!["kabuk-tasarim", "tazminat"]);
+        assert_eq!(strings(m.get("strip")), vec!["qa-", "mimar-"]);
+        assert_eq!(m["labels"]["x"], "X");
+        assert_eq!(m["short_names"], true);
     }
 
     #[test]

@@ -68,6 +68,8 @@ pub struct Event {
     pub team: String,
     /// On a spawn event: the task given to the subagent.
     pub desc: String,
+    /// The current task of the agent that wrote the event (any event may set it).
+    pub task: String,
 }
 
 /// Permission modes in which Claude Code never shows a permission prompt.
@@ -108,7 +110,8 @@ pub fn parse(line: &str) -> Option<Event> {
         spawned: text(&v, &["spawnedAgentId", "spawned_agent_id"]),
         agent_name: text(&v, &["agentName", "agent_name"]),
         team: text(&v, &["team", "teamName"]),
-        desc: text(&v, &["desc", "description", "task"]),
+        desc: text(&v, &["desc", "description"]),
+        task: text(&v, &["task"]),
     })
 }
 
@@ -196,7 +199,7 @@ impl EventLog {
         // any other event the agent that wrote it.
         let who = if !e.spawned.is_empty() {
             Some(format!("{}/{}", e.sid, e.spawned))
-        } else if !e.team.is_empty() {
+        } else if !e.team.is_empty() || !e.task.is_empty() {
             Some(if e.agent_id.is_empty() {
                 e.sid.clone()
             } else {
@@ -215,6 +218,9 @@ impl EventLog {
             }
             if !e.spawned.is_empty() && !e.desc.is_empty() {
                 slot.2 = e.desc.clone();
+            }
+            if !e.task.is_empty() {
+                slot.2 = e.task.clone();
             }
         }
         if !e.spawned.is_empty() {
@@ -288,7 +294,10 @@ impl EventLog {
                 if !team.is_empty() {
                     a.team = Some(team.clone());
                 }
-                if a.task.is_empty() && !task.is_empty() {
+                // An explicit task from events beats a guess; a bare run id does not.
+                if !task.is_empty()
+                    && (a.task.is_empty() || !crate::model::task_text(task).is_empty())
+                {
                     a.task = task.clone();
                 }
             }

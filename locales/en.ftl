@@ -259,3 +259,11 @@ init-preview = Agents per team with these rules:
 init-hint = Nothing saved. Run `argus init --write` to save these rules to { $path }, then edit the file if needed.
 init-written = Saved to { $path }. Argus picks it up within a second; edit the file to rename teams or add labels.
 init-missing-file = Warning: teams_file { $path } in your current teams.json does not exist, so its team codes and names are not used. Point it at an existing file.
+
+## Plain-word activities
+act-test = running tests
+act-build = building
+act-install = installing packages
+act-wait = waiting
+act-inspect = looking through files
+warn-teams-file = teams_file { $arg } does not exist: team codes and names from it are not used

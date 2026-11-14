@@ -240,6 +240,12 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
             label("key-reject"),
         ]);
     }
+    if let Some((id, arg)) = app.snapshot.warnings.first() {
+        spans.push(Span::styled(
+            format!(" ! {}  ", app.i18n.t_args(id, &[("arg", arg.as_str())])),
+            Style::new().fg(AMBER),
+        ));
+    }
     spans.extend([
         key(":"),
         label("key-cmd"),

@@ -33,6 +33,7 @@ writes `events-YYYY-MM-DD.jsonl` and deletes its own files after 3 days.
 | `status` | no | For `Notification`: `idle_prompt`, `permission_prompt`, … |
 | `team` | no | Team of the agent that wrote the event (or of the spawned subagent) |
 | `agentName` | no | Display name of that agent |
+| `task` | no | Current task of the agent that wrote the event (or of the spawned subagent); any event may update it |
 | `desc` | no | On a spawn event: the task given to the subagent, shown next to it |
 | `spawnedAgentId` | no | On the event of a tool that started a subagent: that subagent's id; `agentName` and `team` then describe it |
 | `mode` | no | Permission mode; `auto`, `bypassPermissions` and `dontAsk` mean the session never waits for approvals |

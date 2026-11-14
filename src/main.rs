@@ -175,12 +175,17 @@ fn init(claude_dir: &std::path::Path, write: bool, lang: Option<&str>) -> Result
     std::thread::sleep(Duration::from_millis(300));
     let snap = src.poll();
     let names: Vec<String> = snap.agents.iter().map(|a| a.name.clone()).collect();
-    let Some(rules) = groups::infer(&names, &i18n.t("init-default-team")) else {
+    let Some(suggested) = groups::infer(&names, &i18n.t("init-default-team")) else {
         println!(
             "{}",
             i18n.t_args("init-none", &[("n", names.len().to_string().as_str())])
         );
         return Ok(());
+    };
+    // Existing rules are kept and only extended.
+    let rules = match &current {
+        Some(existing) => groups::Rules::merge_suggestion(existing, &suggested),
+        None => suggested,
     };
     println!("{}\n", serde_json::to_string_pretty(&rules)?);
     let parsed = groups::Rules::from_value(&rules);

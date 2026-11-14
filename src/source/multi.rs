@@ -37,6 +37,7 @@ impl Source for MultiSource {
             out.tools.extend(snap.tools);
             out.tasks.extend(snap.tasks);
             out.team_labels.extend(snap.team_labels);
+            out.warnings.extend(snap.warnings);
         }
         // With remote hosts, hide the local machine when it has no agents of its own.
         if self.sources.len() > 1 {

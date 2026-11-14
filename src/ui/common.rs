@@ -185,20 +185,7 @@ pub fn name(app: &App, id: &str) -> String {
 }
 
 /// What the agent is doing right now, localized.
-/// A task without a leading run id such as `R-20261114-1538-setup-wizard`
-/// (orchestrators prefix assignments with them; the detail view keeps it).
-pub fn task_text(task: &str) -> &str {
-    let t = task.trim_start();
-    let token_end = t.find([' ', ':']).unwrap_or(t.len());
-    let token = &t[..token_end];
-    let digits = token.chars().filter(|c| c.is_ascii_digit()).count();
-    let looks_like_id = token.len() >= 12 && digits >= 8 && token.contains('-');
-    if looks_like_id && token_end < t.len() {
-        t[token_end..].trim_start_matches([' ', ':', '-'])
-    } else {
-        t
-    }
-}
+pub use crate::model::task_text;
 
 pub fn now_text(app: &App, a: &Agent) -> String {
     let i = &app.i18n;
@@ -210,7 +197,7 @@ pub fn now_text(app: &App, a: &Agent) -> String {
                 .to_string()
         }
         AgentState::Working if !a.tool.is_empty() && a.tool != "—" => {
-            format!("{} {}", a.tool, target).trim().to_string()
+            plain_activity(app, &a.tool, target)
         }
         AgentState::Working => i.t("now-thinking"),
         AgentState::Waiting => i.t_args(
@@ -281,16 +268,62 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-mod task_tests {
-    #[test]
-    fn run_ids_are_dropped_from_tasks() {
-        use super::task_text;
-        assert_eq!(
-            task_text("R-20261114-1538-kurulum-sihirbazi liste adimi"),
-            "liste adimi"
-        );
-        assert_eq!(task_text("Fix the login form"), "Fix the login form");
-        assert_eq!(task_text("R-20261114-1538-only"), "R-20261114-1538-only");
-    }
+/// What a tool call does, in plain words: "Bash · running tests",
+/// "Edit · SetupWizardPage.tsx", "Agent → new tester". The raw command stays in
+/// the agent detail view.
+pub fn plain_activity(app: &App, tool: &str, target: &str) -> String {
+    let i = &app.i18n;
+    let base = |p: &str| {
+        p.trim_matches('"')
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(p)
+            .to_string()
+    };
+    // Long-running markers like "[6m12s] " or "[bg 3m] " stay in front.
+    let (mark, target) = match target.strip_prefix('[').and_then(|t| t.split_once("] ")) {
+        Some((m, rest)) => (format!("[{m}] "), rest),
+        None => (String::new(), target),
+    };
+    let what = match tool {
+        "Bash" => {
+            // The command after any "cd ... &&" and environment assignments.
+            let cmd = target.rsplit("&&").next().unwrap_or(target).trim();
+            let cmd = cmd.rsplit(';').next().unwrap_or(cmd).trim();
+            let words: Vec<&str> = cmd
+                .split_whitespace()
+                .filter(|w| !w.contains('='))
+                .collect();
+            let has = |k: &[&str]| words.iter().any(|w| k.contains(&w.trim_matches('"')));
+            let key = if has(&["test", "pytest", "vitest", "jest", "playwright", "nextest"]) {
+                Some("act-test")
+            } else if has(&["build", "tsc", "make", "compile"]) {
+                Some("act-build")
+            } else if has(&["install", "ci", "add"])
+                && has(&["npm", "pnpm", "yarn", "pip", "cargo", "apt"])
+            {
+                Some("act-install")
+            } else if has(&["sleep", "wait", "until"]) {
+                Some("act-wait")
+            } else if words.first() == Some(&"git") || words.first() == Some(&"gh") {
+                None
+            } else if has(&[
+                "grep", "rg", "find", "ls", "cat", "head", "tail", "sed", "jq",
+            ]) {
+                Some("act-inspect")
+            } else {
+                None
+            };
+            match key {
+                Some(k) => i.t(k),
+                None => words.iter().take(2).copied().collect::<Vec<_>>().join(" "),
+            }
+        }
+        "Edit" | "Write" | "MultiEdit" | "Read" | "NotebookEdit" => base(target),
+        "Agent" | "Task" => format!("→ {}", task_text(target)),
+        _ => target.to_string(),
+    };
+    format!("{mark}{tool} · {what}")
+        .trim_end_matches(" · ")
+        .to_string()
 }

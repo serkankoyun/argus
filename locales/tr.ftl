@@ -257,3 +257,11 @@ init-preview = Bu kurallarla ekip başına ajan sayısı:
 init-hint = Hiçbir şey kaydedilmedi. Kuralları { $path } dosyasına kaydetmek için `argus init --write` çalıştırın, sonra gerekirse dosyayı düzenleyin.
 init-written = { $path } dosyasına kaydedildi. Argus bir saniye içinde okur; ekipleri yeniden adlandırmak veya ad eklemek için dosyayı düzenleyin.
 init-missing-file = Uyarı: mevcut teams.json içindeki teams_file { $path } yok; bu yüzden oradaki ekip kodları ve adları kullanılmıyor. Var olan bir dosyayı gösterin.
+
+## Plain-word activities
+act-test = test koşuyor
+act-build = derliyor
+act-install = paket kuruyor
+act-wait = bekliyor
+act-inspect = dosyalara bakıyor
+warn-teams-file = teams_file { $arg } yok: oradaki ekip kodları ve adları kullanılmıyor
