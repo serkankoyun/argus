@@ -286,7 +286,8 @@ impl Source for DemoSource {
                         label: s.label[l].into(),
                         text: s.text[l].into(),
                         answered_at: if s.kind == MsgKind::Perm {
-                            self.answered.contains(&k).then_some(now)
+                            // Earlier loops' approvals were answered; the current one waits.
+                            (k < cycle || self.answered.contains(&k)).then_some(ts + 20_000)
                         } else {
                             Some(ts + 3_000)
                         },

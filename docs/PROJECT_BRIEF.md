@@ -76,6 +76,16 @@ Agent messages and "now" descriptions are shown in the user's language.
 - CI: GitHub Actions matrix on Windows + macOS + Linux; tagged releases built automatically (cargo-dist)
 - README GIFs generated automatically with `vhs`
 
+## Status (Nov 14, 2026)
+
+All ten views plus the Teams view are implemented and recorded from the demo in
+`docs/media/`. Live collector, SSH remotes (auto-install), command bar, headless runs,
+`--resume` messages and the PermissionRequest approval hook are done and covered by
+end-to-end tests in CI (fixtures, SSH loopback, hook round trip).
+
+Next: replay/scrubbing of past sessions, Homebrew/Scoop packages, config file for hosts,
+richer Agent Teams support (task files, teammate names) once verified on real data.
+
 ## Roadmap
 
 - **v0.1** — local machine, Overview, agent tree, metrics, EN+TR, view-switching foundation

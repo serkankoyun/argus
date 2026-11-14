@@ -21,6 +21,7 @@ conversation between your agents.
 
 ## Features (planned for v1.0)
 
+- **Teams** — agents grouped by Agent Teams team (or project); one card per team, cross-team requests, and `t` filters every view to one team
 - **Ten views, one keystroke apart** — switch instantly with `1`–`0` or `tab`; the selected agent follows you
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
@@ -56,8 +57,9 @@ conversation between your agents.
 
 ## Install
 
-Pre-built binaries and package managers (Homebrew, Scoop) arrive with the first release.
-Until then, build from source with a recent stable Rust toolchain:
+Download a binary for macOS, Linux or Windows from the
+[latest release](https://github.com/serkankoyun/argus/releases), or build from source
+with a recent stable Rust toolchain:
 
 ```sh
 git clone https://github.com/serkankoyun/argus
@@ -81,15 +83,39 @@ argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
 | `↑` `↓` / `j` `k` | Select agent (the selection follows you across views) |
 | `⏎` / `esc` | Agent detail / back to Overview |
 | `z` | Zoom the Lanes timeline |
+| `t` / `T` | Filter all views to a team / open the Teams view |
+| `g` | Group Graph and Room by team instead of host |
+| `a` / `r` | Approve / reject the pending permission request |
+| `:` | Command bar: `connect user@host`, `msg <text>`, `run <dir> <prompt>`, `view <name>`, `lang tr` |
+| `>` | Start a new headless Claude Code run in the selected agent's project |
 | `space` | Pause / resume live updates |
 | `q` | Quit |
+
+## Remote machines
+
+```sh
+argus --host me@prod-1 --host me@gpu-2   # or press : and type connect me@prod-1
+```
+
+Argus uses your own `ssh` (keys, config, jump hosts all work). If the remote has no
+`argus`, the local binary is copied to `~/.cache/argus/` when the platforms match.
+Nothing listens on a port; the collector stops when you disconnect.
+
+## Approving from Argus
+
+```sh
+argus hook --install    # adds a PermissionRequest hook to ~/.claude/settings.json
+```
+
+Claude Code then asks Argus first: press `a` or `r`. If nobody answers within
+`--wait` seconds (default 120) the normal permission prompt appears.
 
 ## Roadmap
 
 - **v0.1** ✓ — local collector, Overview, agent tree, metrics, EN + TR, view switching
 - **v0.2** ✓ — Graph, Room, Lanes, Agent, Sequence, Fleet, Channel, Task map, Pair views
-- **v0.3** — remote machines over SSH, Fleet view, Windows support
-- **v0.4** — command bar, launching agents, remote approvals
+- **v0.3** ✓ — remote machines over SSH, Fleet view, Windows support
+- **v0.4** ✓ — command bar, launching agents, remote approvals, teams
 - **v1.0** — Channel, Task map and Pair views, replay, packages
 
 See [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) for the full design.
