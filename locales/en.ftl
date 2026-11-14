@@ -95,3 +95,27 @@ pane-now = Now
 you = you
 approvals-pending = { $n } approval(s) pending
 press-a = press a to approve
+
+## Room
+pane-room = Who is doing what, and asking whom
+now-label = now
+pane-requests = Open requests
+pane-conversations = Recent conversations
+req-answered = ✓ ANSWERED
+req-answered-in = answered in { $t }
+req-approval = NEEDS APPROVAL
+req-new = NEW
+req-working = IN PROGRESS
+req-waiting = waiting { $t }
+req-running = running { $t }
+req-none = No open requests.
+
+## Lanes
+pane-lanes = Agents and the messages between them
+lanes-legend = Read · Edit · Bash · agents · web  │  ┊ message  │  z zoom ({ $w })
+lanes-now = now
+lanes-now-col = NOW / WAITING FOR
+lanes-waiting-for = waiting for
+lanes-asked-by = asked by
+pane-matrix = Who asks whom for what
+matrix-corner = from ↓ / to →

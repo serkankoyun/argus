@@ -112,6 +112,23 @@ fn draw_graph(buf: &mut Buffer, area: Rect, app: &App) {
             .render(g.area, buf);
     }
 
+    draw_links(buf, area, app, &pos, true);
+
+    for n in &nodes {
+        let r = layout::node_rect(n, NODE_W, NODE_H, area);
+        draw_node(buf, r, n, app);
+    }
+}
+
+/// Draws edges (parent links and message traffic) and messages in flight.
+pub fn draw_links(
+    buf: &mut Buffer,
+    area: Rect,
+    app: &App,
+    pos: &HashMap<&str, &Node>,
+    labels: bool,
+) {
+    let s = &app.snapshot;
     // Edges: parent links plus every pair that exchanged messages.
     let mut edges: HashMap<(String, String), (usize, MsgKind)> = HashMap::new();
     for a in &s.agents {
@@ -154,6 +171,15 @@ fn draw_graph(buf: &mut Buffer, area: Rect, app: &App) {
         let (x, y) = layout::lerp((a.x, a.y), (b.x, b.y), t);
         if area.contains(Position { x, y }) {
             let c = kind_color(m.kind);
+            if !labels {
+                buf.set_string(
+                    x,
+                    y,
+                    m.kind.glyph(),
+                    Style::new().fg(c).add_modifier(Modifier::BOLD),
+                );
+                continue;
+            }
             buf.set_string(
                 x,
                 y,
@@ -171,11 +197,6 @@ fn draw_graph(buf: &mut Buffer, area: Rect, app: &App) {
                 Style::new().fg(FG).bg(Color::Rgb(13, 17, 23)),
             );
         }
-    }
-
-    for n in &nodes {
-        let r = layout::node_rect(n, NODE_W, NODE_H, area);
-        draw_node(buf, r, n, app);
     }
 }
 

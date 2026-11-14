@@ -55,8 +55,7 @@ impl View {
     /// Roadmap milestone in which the view ships (shown on placeholder screens).
     pub fn milestone(self) -> &'static str {
         match self {
-            View::Overview | View::Graph => "v0.1",
-            View::Room | View::Lanes => "v0.2",
+            View::Overview | View::Graph | View::Room | View::Lanes => "v0.2",
             View::Fleet => "v0.3",
             View::Sequence | View::AgentDetail => "v0.4",
             View::Channel | View::TaskMap | View::Pair => "v1.0",
@@ -82,7 +81,12 @@ pub struct App {
     /// Frame counter for spinners and blinking.
     pub frame: u64,
     pub should_quit: bool,
+    /// Index into [`LANE_WINDOWS`].
+    pub lanes_zoom: usize,
 }
+
+/// Time windows of the Lanes view, in ms (cycled with `z`).
+pub const LANE_WINDOWS: [Millis; 4] = [30_000, 60_000, 5 * 60_000, 15 * 60_000];
 
 impl App {
     pub fn new(i18n: I18n, rx: Receiver<Snapshot>, demo: bool) -> Self {
@@ -97,6 +101,7 @@ impl App {
             now: now_millis(),
             frame: 0,
             should_quit: false,
+            lanes_zoom: 1,
         }
     }
 
@@ -129,6 +134,10 @@ impl App {
             .into_iter()
             .map(|(i, _)| &self.snapshot.agents[i])
             .collect()
+    }
+
+    pub fn lanes_window(&self) -> Millis {
+        LANE_WINDOWS[self.lanes_zoom % LANE_WINDOWS.len()]
     }
 
     pub fn selected_agent(&self) -> Option<&Agent> {
@@ -175,6 +184,7 @@ impl App {
                 }
             }
             KeyCode::Esc => self.view = View::Overview,
+            KeyCode::Char('z') => self.lanes_zoom = (self.lanes_zoom + 1) % LANE_WINDOWS.len(),
             KeyCode::Down | KeyCode::Char('j') => self.move_selection(1),
             KeyCode::Up | KeyCode::Char('k') => self.move_selection(-1),
             _ => {}

@@ -2,8 +2,10 @@
 
 mod common;
 mod graph;
+mod lanes;
 mod layout;
 mod overview;
+mod room;
 
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -29,6 +31,8 @@ pub fn draw(frame: &mut Frame, app: &App) {
     match app.view {
         View::Overview => overview::draw(frame, body, app),
         View::Graph => graph::draw(frame, body, app),
+        View::Room => room::draw(frame, body, app),
+        View::Lanes => lanes::draw(frame, body, app),
         other => draw_placeholder(frame, body, app, other),
     }
     draw_footer(frame, footer, app);

@@ -93,3 +93,27 @@ pane-now = Şimdi
 you = sen
 approvals-pending = { $n } onay bekliyor
 press-a = onay için a'ya bas
+
+## Room
+pane-room = Kim ne yapıyor, kimden ne istiyor
+now-label = şu an
+pane-requests = Açık istekler
+pane-conversations = Son konuşmalar
+req-answered = ✓ CEVAPLANDI
+req-answered-in = { $t } içinde cevaplandı
+req-approval = ONAY BEKLİYOR
+req-new = YENİ
+req-working = ÇALIŞIYOR
+req-waiting = { $t } bekliyor
+req-running = { $t } sürüyor
+req-none = Açık istek yok.
+
+## Lanes
+pane-lanes = Ajanlar ve aralarındaki mesajlar
+lanes-legend = Read · Edit · Bash · ajanlar · web  │  ┊ mesaj  │  z yakınlaştır ({ $w })
+lanes-now = şimdi
+lanes-now-col = ŞU AN / NE BEKLİYOR
+lanes-waiting-for = bekliyor:
+lanes-asked-by = isteyen:
+pane-matrix = Kim kimden ne istiyor
+matrix-corner = isteyen ↓ / istenen →
