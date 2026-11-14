@@ -118,27 +118,66 @@ fn measure_rtt(target: &str) -> Option<u32> {
     ok.then(|| t0.elapsed().as_millis().min(u32::MAX as u128) as u32)
 }
 
+/// Places where users typically install argus on a remote machine. Non-interactive
+/// SSH shells often lack `~/.local/bin` or Homebrew on `PATH`, so look there too.
+const CANDIDATES: &[&str] = &[
+    "~/.cache/argus/argus",
+    "~/.local/bin/argus",
+    "~/.cargo/bin/argus",
+    "/usr/local/bin/argus",
+    "/opt/homebrew/bin/argus",
+    "/home/linuxbrew/.linuxbrew/bin/argus",
+];
+
+/// Shell script that prints `BIN=<path>` for the first usable argus (if any)
+/// and `OS=<uname -sm>`.
+pub fn probe_script() -> String {
+    let list = CANDIDATES.join(" ");
+    format!(
+        "for p in \"$(command -v argus 2>/dev/null)\" {list}; do \
+         if [ -n \"$p\" ] && [ -x \"$p\" ] && \"$p\" --version 2>/dev/null | grep -q '^argus '; then echo \"BIN=$p\"; break; fi; \
+         done; echo \"OS=$(uname -sm)\""
+    )
+}
+
+/// Parses the probe output into (binary, platform).
+pub fn parse_probe(out: &str) -> (Option<String>, String) {
+    let mut bin = None;
+    let mut os = String::new();
+    for line in out.lines() {
+        if let Some(b) = line.trim().strip_prefix("BIN=") {
+            if !b.is_empty() {
+                bin = Some(b.to_string());
+            }
+        } else if let Some(o) = line.trim().strip_prefix("OS=") {
+            os = o.to_string();
+        }
+    }
+    (bin, os)
+}
+
 /// Finds a usable remote argus, installing it if possible.
 fn remote_binary(target: &str, sh: &Arc<Mutex<Shared>>) -> Result<String, String> {
-    let probe = format!("command -v argus || (test -x {REMOTE_BIN} && echo {REMOTE_BIN}) || echo MISSING; uname -sm");
     let out = ssh(target)
-        .arg(probe)
+        .arg(probe_script())
         .output()
         .map_err(|e| format!("ssh: {e}"))?;
-    if !out.status.success() {
+    if !out.status.success() && out.stdout.is_empty() {
         return Err(first_line(&String::from_utf8_lossy(&out.stderr))
             .unwrap_or_else(|| "ssh failed".into()));
     }
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut lines = text.lines();
-    let found = lines.next().unwrap_or("MISSING").trim().to_string();
-    let platform = lines.next().unwrap_or("").trim().to_string();
-    if found != "MISSING" && !found.is_empty() {
-        return Ok(found);
+    let (found, platform) = parse_probe(&String::from_utf8_lossy(&out.stdout));
+    if let Some(bin) = found {
+        return Ok(bin);
     }
     if !platform_matches(&platform) {
+        let os = if platform.is_empty() {
+            "unknown system".to_string()
+        } else {
+            platform
+        };
         return Err(format!(
-            "argus not installed on remote ({platform}); install it there"
+            "argus missing on remote ({os}): install it to ~/.cache/argus/argus (INSTALL.md §4)"
         ));
     }
     set_state(sh, LinkState::Installing);
@@ -375,5 +414,22 @@ mod tests {
             assert!(platform_matches(u));
         }
         assert!(!platform_matches("Plan9 mips"));
+    }
+
+    #[test]
+    fn parses_probe_output() {
+        let (bin, os) = parse_probe("BIN=/home/me/.local/bin/argus\nOS=Linux x86_64\n");
+        assert_eq!(bin.as_deref(), Some("/home/me/.local/bin/argus"));
+        assert_eq!(os, "Linux x86_64");
+        let (bin, os) = parse_probe("OS=Linux aarch64\n");
+        assert!(bin.is_none());
+        assert_eq!(os, "Linux aarch64");
+    }
+
+    #[test]
+    fn probe_checks_common_install_paths() {
+        let s = probe_script();
+        assert!(s.contains("~/.local/bin/argus") && s.contains("~/.cache/argus/argus"));
+        assert!(s.contains("command -v argus"));
     }
 }

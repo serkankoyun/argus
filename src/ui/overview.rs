@@ -51,14 +51,22 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
             ),
             Span::raw(count.to_string()),
         ]));
-        lines.push(Line::from(vec![
-            Span::styled("  cpu ", Style::new().fg(DIM)),
-            Span::styled(
-                bar(h.cpu_pct, 10, '█', '░'),
-                Style::new().fg(level(h.cpu_pct)),
-            ),
-            Span::raw(format!(" {}%", h.cpu_pct)),
-        ]));
+        if !h.connected && !h.region.is_empty() {
+            // For remote hosts the region field carries the link state or error.
+            lines.push(Line::styled(
+                format!("  {}", trunc(&h.region, 26)),
+                Style::new().fg(AMBER),
+            ));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("  cpu ", Style::new().fg(DIM)),
+                Span::styled(
+                    bar(h.cpu_pct, 10, '█', '░'),
+                    Style::new().fg(level(h.cpu_pct)),
+                ),
+                Span::raw(format!(" {}%", h.cpu_pct)),
+            ]));
+        }
     }
     let p = Paragraph::new(lines).block(pane(app.i18n.t("pane-hosts"), false));
     frame.render_widget(p, area);

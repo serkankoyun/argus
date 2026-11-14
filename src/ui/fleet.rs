@@ -166,7 +166,11 @@ fn draw_alerts(frame: &mut Frame, area: Rect, app: &App) {
         lines.push(Line::from(vec![
             Span::styled("         ▲ ", Style::new().fg(AMBER)),
             Span::styled(format!("{:<9}", trunc(&h.name, 8)), Style::new().fg(CYAN)),
-            Span::raw(i.t("alert-host-down")),
+            Span::raw(if h.region.is_empty() {
+                i.t("alert-host-down")
+            } else {
+                h.region.clone()
+            }),
         ]));
     }
     if lines.is_empty() {

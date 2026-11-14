@@ -244,9 +244,26 @@ jump hosts, ports).
 
    Or add a host while Argus is running: press `:` and type `connect user@server`.
 
-3. On first connection Argus looks for `argus` on the remote machine. If it is missing and
-   the remote has the same OS and CPU type, Argus copies itself to `~/.cache/argus/argus`
-   there. Otherwise install Argus on the remote machine as in step 1.
+3. On first connection Argus looks for `argus` on the remote machine (on its `PATH` and in
+   `~/.cache/argus`, `~/.local/bin`, `~/.cargo/bin`, `/usr/local/bin` and the Homebrew
+   folders). If it is missing and the remote has the **same OS and CPU type** as your
+   machine, Argus copies itself to `~/.cache/argus/argus` there.
+
+   **Connecting from Windows, or to a different OS/CPU** (e.g. Windows or a Mac → a Linux
+   server): automatic copying is not possible, so install Argus on the server once:
+
+   ```sh
+   ssh user@server
+   uname -m                       # x86_64 → x86_64 archive, aarch64 → aarch64 archive
+   mkdir -p ~/.cache/argus && cd /tmp
+   curl -LO https://github.com/serkankoyun/argus/releases/latest/download/argus-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+   tar xzf argus-v*-unknown-linux-gnu.tar.gz
+   mv argus-v*-unknown-linux-gnu/argus ~/.cache/argus/argus
+   ~/.cache/argus/argus --version
+   ```
+
+   (Replace `v0.1.0` with the latest version from the releases page.) If the server is not
+   ready, the Overview and Fleet views show the reason next to the host in amber.
 
 Nothing listens on a network port; the remote collector runs only while you are connected.
 The Fleet view (`4`) shows connection health, round-trip time and alerts per host.
@@ -296,9 +313,13 @@ glyphs and a modern terminal (on Windows: Windows Terminal, not the legacy conso
 **macOS: "cannot be opened because the developer cannot be verified"** — Run
 `sudo xattr -d com.apple.quarantine /usr/local/bin/argus`.
 
-**Remote host stays "connecting…" or shows an error in the Fleet view** — Run
-`ssh -o BatchMode=yes user@server true` yourself; it must succeed without prompts. If the
-remote is a different OS/CPU, install Argus there manually.
+**Remote host stays "connecting…" or shows an error** — The reason is shown in amber next
+to the host (Overview) and in the Fleet view's alerts (`4`).
+- `argus missing on remote (…)`: install Argus on the server (section 4, step 3).
+- `Permission denied`, `Host key verification failed` or `ssh failed`: run
+  `ssh -o BatchMode=yes user@server true` yourself; it must succeed without any prompt.
+- Connected (green) but no agents: the server has no Claude Code session active in the last
+  24 hours. Check with `ssh user@server ls ~/.claude/projects`.
 
 **Costs look different from my bill** — Costs are estimates from public per-token prices;
 subscriptions and discounts are not known to Argus.
