@@ -292,6 +292,8 @@ struct Spawn {
     agent_type: String,
     prompt: String,
     result: Option<(Millis, String)>,
+    /// Id of the subagent it started, from the tool result ("agentId: ...").
+    agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -515,6 +517,7 @@ impl Session {
                 agent_type: s("subagent_type"),
                 prompt: s("prompt"),
                 result: None,
+                agent_id: None,
             }),
             "SendMessage" => {
                 let to = first_of(&input, &["recipient", "to", "target", "teammate"]);
@@ -580,6 +583,9 @@ impl Session {
                     // real result arrives later, so the notice is not a result.
                     let launched = text.trim_start().starts_with("Async agent launched");
                     if let Some(sp) = self.spawns.iter_mut().find(|s| s.tool_use_id == id) {
+                        if let Some(aid) = agent_id_in(&text) {
+                            sp.agent_id = Some(aid);
+                        }
                         if !launched {
                             sp.result = Some((ts, text));
                         }
@@ -769,7 +775,7 @@ pub fn build_snapshot<'a>(
                 .iter()
                 .find(|c| {
                     c.parent.as_deref() == Some(s.id.as_str())
-                        && prompt_matches(&c.first_prompt, &sp.prompt)
+                        && spawn_of(s, c).is_some_and(|x| x.tool_use_id == sp.tool_use_id)
                 })
                 .map(|c| c.id.clone())
                 .unwrap_or_else(|| format!("{}/{}", s.id, sp.tool_use_id));
@@ -900,6 +906,36 @@ fn is_long_running(tool: &str) -> bool {
     matches!(tool, "Task" | "Agent" | "WebFetch" | "WebSearch")
 }
 
+/// The subagent id that Claude Code puts in a spawn's tool result
+/// (`agentId: a5c0bbbce5bb3270e`).
+fn agent_id_in(text: &str) -> Option<String> {
+    let i = text.find("agentId")?;
+    let id: String = text[i + "agentId".len()..]
+        .trim_start_matches([':', ' ', '"', '='])
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect();
+    (id.len() >= 6).then_some(id)
+}
+
+/// The spawn that started `child`: by subagent id when the parent's tool
+/// result named one, else by prompt. Orchestrators often reuse one prompt
+/// template, so a prompt match is only trusted for spawns without an id.
+fn spawn_of<'a>(parent: &'a Session, child: &Session) -> Option<&'a Spawn> {
+    let tail = child.id.rsplit('/').next().unwrap_or("");
+    parent
+        .spawns
+        .iter()
+        .find(|sp| sp.agent_id.as_deref() == Some(tail))
+        .or_else(|| {
+            parent
+                .spawns
+                .iter()
+                .filter(|sp| sp.agent_id.is_none())
+                .find(|sp| prompt_matches(&child.first_prompt, &sp.prompt))
+        })
+}
+
 fn prompt_matches(first_prompt: &str, prompt: &str) -> bool {
     let a: String = first_prompt
         .split_whitespace()
@@ -956,10 +992,7 @@ fn disambiguate_names(snap: &mut Snapshot, sessions: &[&Session]) {
 
 fn spawn_description(s: &Session, all: &[&Session]) -> Option<String> {
     let parent = all.iter().find(|p| Some(&p.id) == s.parent.as_ref())?;
-    parent
-        .spawns
-        .iter()
-        .find(|sp| prompt_matches(&s.first_prompt, &sp.prompt))
+    spawn_of(parent, s)
         .map(|sp| sp.description.clone())
         .filter(|d| !d.is_empty())
 }
@@ -970,11 +1003,7 @@ fn agent_name(s: &Session, all: &[&Session]) -> String {
     }
     if let Some(parent) = &s.parent {
         if let Some(p) = all.iter().find(|p| &p.id == parent) {
-            if let Some(sp) = p
-                .spawns
-                .iter()
-                .find(|sp| prompt_matches(&s.first_prompt, &sp.prompt))
-            {
+            if let Some(sp) = spawn_of(p, s) {
                 let base = if sp.agent_type.is_empty() || sp.agent_type == "general-purpose" {
                     &sp.description
                 } else {
@@ -1016,12 +1045,10 @@ fn infer_state(
     // resumed afterwards (a later message continues the same subagent).
     if let Some(parent) = &s.parent {
         if let Some(p) = all.iter().find(|p| &p.id == parent) {
-            let finished = p.spawns.iter().any(|sp| {
-                prompt_matches(&s.first_prompt, &sp.prompt)
-                    && sp
-                        .result
-                        .as_ref()
-                        .is_some_and(|(at, _)| *at + 1000 >= s.last)
+            let finished = spawn_of(p, s).is_some_and(|sp| {
+                sp.result
+                    .as_ref()
+                    .is_some_and(|(at, _)| *at + 1000 >= s.last)
             });
             if finished {
                 return AgentState::Done;
@@ -1383,6 +1410,16 @@ mod tests {
             .messages
             .iter()
             .any(|m| m.kind == MsgKind::Perm && m.to == YOU));
+    }
+
+    #[test]
+    fn agent_ids_in_spawn_results() {
+        assert_eq!(
+            agent_id_in("Async agent launched successfully.\nagentId: a5c0bbbce5bb3270e (use it)")
+                .as_deref(),
+            Some("a5c0bbbce5bb3270e")
+        );
+        assert_eq!(agent_id_in("done, no id"), None);
     }
 
     #[test]

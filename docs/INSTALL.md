@@ -243,13 +243,16 @@ the team in agent names (for example `qa-payments-review`), describe it in
   "strip": ["developer-", "tester-", "qa-"],
   "teams": ["payments", "search-api"],
   "teams_file": "/path/to/ownership/teams.json",
+  "aliases": { "pay": "payments" },
   "default": "no-team"
 }
 ```
 
 The first matching `strip` prefix is removed from the name, then the longest matching team
 code wins. `teams_file` (optional) adds codes from a JSON file: a list of strings, or objects
-with `code`, at the top level or under `teams`. Agents matching no code get `default`.
+with `code`, at the top level or under `teams`. A code matches whole name segments only. `aliases` maps retired codes to current
+ones, so agents from before a team rename stay with that team. Agents matching no code get
+`default`.
 Changes are picked up within a second; no restart needed.
 
 ## 4. Watching remote machines over SSH (optional)

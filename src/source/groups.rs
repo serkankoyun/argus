@@ -7,6 +7,7 @@
 //!   "strip": ["developer-", "qa-"],
 //!   "teams": ["payments", "search-api"],
 //!   "teams_file": "/path/to/teams.json",
+//!   "aliases": { "old-code": "new-code" },
 //!   "default": "no-team"
 //! }
 //! ```
@@ -14,7 +15,9 @@
 //! against the team codes (longest prefix wins). Codes come from `teams` and,
 //! optionally, from `teams_file`: a JSON list of strings, or objects with a
 //! `code` (or `name`), at the top level or under `teams`. Agents that match no
-//! code get `default` when it is set. Agents that already have a team keep it.
+//! code get `default` when it is set. `aliases` maps retired codes to current
+//! ones, so agents from before a rename join the renamed team. Agents that
+//! already have a team keep it.
 
 use std::path::{Path, PathBuf};
 
@@ -30,6 +33,7 @@ pub fn path(root: &Path) -> PathBuf {
 pub struct Rules {
     strip: Vec<String>,
     teams: Vec<String>,
+    aliases: Vec<(String, String)>,
     default: Option<String>,
 }
 
@@ -72,7 +76,18 @@ impl Rules {
         }
         teams.sort();
         teams.dedup();
+        let aliases = v
+            .get("aliases")
+            .and_then(Value::as_object)
+            .map(|m| {
+                m.iter()
+                    .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                    .filter(|(k, v)| !k.is_empty() && !v.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
         Rules {
+            aliases,
             strip: strings(v.get("strip")),
             teams,
             default: v
@@ -89,11 +104,19 @@ impl Rules {
             .iter()
             .find_map(|p| name.strip_prefix(p.as_str()))
             .unwrap_or(name);
-        self.teams
-            .iter()
-            .filter(|t| rest.starts_with(t.as_str()))
-            .max_by_key(|t| t.len())
-            .cloned()
+        // Current codes and retired ones compete on length; a code only matches
+        // a whole name segment ("ag" must not match "agent-...").
+        let fits = |code: &str| {
+            rest.strip_prefix(code)
+                .is_some_and(|after| after.is_empty() || after.starts_with('-'))
+        };
+        let current = self.teams.iter().map(|t| (t.as_str(), t.as_str()));
+        let retired = self.aliases.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+        current
+            .chain(retired)
+            .filter(|(code, _)| fits(code))
+            .max_by_key(|(code, _)| code.len())
+            .map(|(_, team)| team.to_string())
             .or_else(|| self.default.clone())
     }
 
@@ -124,6 +147,16 @@ mod tests {
         );
         assert_eq!(r.team_of("qa-provizyon-demo").as_deref(), Some("provizyon"));
         assert_eq!(r.team_of("analist-1").as_deref(), Some("ekipsiz"));
+        let r = Rules::from_value(&json!({
+            "strip": ["qa-"],
+            "teams": ["kurum-agi"],
+            "aliases": {"ag": "kurum-agi"}
+        }));
+        assert_eq!(
+            r.team_of("qa-ag-muzakere-demo").as_deref(),
+            Some("kurum-agi")
+        );
+        assert_eq!(r.team_of("qa-agent-x"), None);
         let r = Rules::from_value(&json!({"teams": ["a"]}));
         assert_eq!(r.team_of("zzz"), None);
     }
