@@ -5,6 +5,7 @@ mod channel;
 mod common;
 mod fleet;
 mod graph;
+mod history;
 mod lanes;
 mod layout;
 mod overview;
@@ -47,6 +48,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::TaskMap => taskmap::draw(frame, body, app),
         View::Pair => pair::draw(frame, body, app),
         View::Teams => teams::draw(frame, body, app),
+        View::History => history::draw(frame, body, app),
     }
     draw_footer(frame, footer, app);
 }
@@ -84,6 +86,12 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled("  │  ", Style::new().fg(DIM)),
         Span::raw(summary),
     ];
+    if let Some(h) = &app.host {
+        spans.push(Span::styled(
+            format!(" · {} {h}", app.i18n.t("host-label")),
+            Style::new().fg(CYAN).add_modifier(Modifier::BOLD),
+        ));
+    }
     if let Some(t) = &app.team {
         spans.push(Span::styled(
             format!(" · {} {t}", app.i18n.t("team-label")),
@@ -133,6 +141,7 @@ fn tab_titles(app: &App) -> Vec<String> {
             let n = match i {
                 9 => "0".to_string(),
                 10 => "T".to_string(),
+                11 => "H".to_string(),
                 _ => (i + 1).to_string(),
             };
             format!("{n} {}", app.i18n.t(v.key()))
@@ -207,7 +216,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
             key("enter"),
             label("key-detail"),
         ];
-        if app.team.is_some() && app.view == View::Overview {
+        if (app.team.is_some() || app.host.is_some()) && app.view == View::Overview {
             v.extend([key("esc"), label("key-leave-team")]);
         }
         v

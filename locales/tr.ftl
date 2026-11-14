@@ -233,3 +233,18 @@ teams-latest = SON
 teams-open = takıma gir
 key-team-move = takım seç
 key-leave-team = tüm takımlar
+
+## Hosts filter and history
+host-label = sunucu
+key-host = sunucu
+key-show-done = bitenleri göster
+key-hide-done = bitenleri gizle
+fleet-hint = ↑↓ sunucu seç · enter yalnız o sunucuyu gösterir · s her ekranda sunucu değiştirir
+view-history = Geçmiş
+history-title = Biten ajanlar · { $n } · ${ $cost }
+history-hint = biten ajanlar diğer ekranlarda gizlidir · f ile orada da gösterilir
+history-empty = Henüz biten ajan yok.
+history-last = Son biten
+col-team = TAKIM
+col-finished = BİTİŞ
+col-outcome = SONUÇ

@@ -181,6 +181,9 @@ Essential keys:
 | `1`–`9`, `0` or `F1`–`F10` | Jump to a view (Overview, Sequence, Agent, Fleet, Graph, Room, Lanes, Channel, Task map, Pair); you can also click the tabs |
 | `T` | Teams view; `←→` choose a team, `Enter` open it, `esc` back to all teams |
 | `t` | Filter every view to the next team |
+| `s` | Filter every view to the next host; on the Fleet view `↑↓` + `Enter` picks one |
+| `f` | Show / hide finished agents (hidden by default) |
+| `H` | History: finished agents with duration, cost and outcome |
 | `↑` `↓` | Select an agent (the selection follows you across views) |
 | `Enter` | Agent detail |
 | `g` | Group Graph and Room by team instead of host |
@@ -245,6 +248,10 @@ jump hosts, ports).
    ```
 
    Or add a host while Argus is running: press `:` and type `connect user@server`.
+
+   To look at one machine at a time, press `s` (cycles through hosts) or open the Fleet
+   view (`4`), choose a host with `↑↓` and press `Enter`; `esc` on the Overview returns to
+   all hosts.
 
    By default Argus watches **this machine and** the `--host` machines together. If this
    machine has no Claude Code sessions it is hidden; use `--no-local` to leave it out

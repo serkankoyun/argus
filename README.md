@@ -54,6 +54,8 @@ conversation between your agents.
 | 8 | Channel | IRC-style live chat between agents |
 | 9 | Task map | Task dependencies, hand-offs and bottlenecks |
 | 0 | Pair | Two agents side by side, their conversation in between |
+| T | Teams | One card per team, cross-team requests |
+| H | History | Finished agents with duration, cost and outcome |
 
 ## Install
 
@@ -101,6 +103,8 @@ argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
 | `Enter` / `esc` | Agent detail / back to Overview |
 | `z` | Zoom the Lanes timeline |
 | `t` / `T` | Filter all views to a team / open the Teams view |
+| `s` | Filter all views to one host (cycles); on Fleet, `↑↓` + `Enter` picks a host |
+| `f` / `H` | Show finished agents in the views / open History (finished agents are hidden by default) |
 | `←→` `Enter` (Teams) | Pick a team card and open it; `esc` on the Overview returns to all teams |
 | `g` | Group Graph and Room by team instead of host |
 | `a` / `r` | Approve / reject the pending permission request |

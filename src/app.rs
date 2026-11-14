@@ -22,10 +22,11 @@ pub enum View {
     TaskMap,
     Pair,
     Teams,
+    History,
 }
 
 impl View {
-    pub const ALL: [View; 11] = [
+    pub const ALL: [View; 12] = [
         View::Overview,
         View::Sequence,
         View::AgentDetail,
@@ -37,6 +38,7 @@ impl View {
         View::TaskMap,
         View::Pair,
         View::Teams,
+        View::History,
     ];
 
     /// Fluent message id for the view's name.
@@ -53,6 +55,7 @@ impl View {
             View::TaskMap => "view-taskmap",
             View::Pair => "view-pair",
             View::Teams => "view-teams",
+            View::History => "view-history",
         }
     }
 
@@ -70,6 +73,12 @@ pub struct App {
     pub full: Snapshot,
     /// Team filter (`t` cycles through teams).
     pub team: Option<String>,
+    /// Host filter (`s` cycles through hosts; Enter on the Fleet view).
+    pub host: Option<String>,
+    /// Show finished agents in the views (`f`); they are always in History.
+    pub show_finished: bool,
+    /// Highlighted host on the Fleet view.
+    pub host_cursor: usize,
     /// Group Graph/Room by team instead of host (`g`).
     pub group_by_team: bool,
     /// Highlighted card in the Teams view.
@@ -108,6 +117,9 @@ impl App {
             snapshot: Snapshot::default(),
             full: Snapshot::default(),
             team: None,
+            host: None,
+            show_finished: false,
+            host_cursor: 0,
             group_by_team: false,
             team_cursor: 0,
             debug_keys: false,
@@ -159,10 +171,75 @@ impl App {
                 self.team = None;
             }
         }
-        self.snapshot = match &self.team {
-            Some(t) => self.full.filtered(t),
-            None => self.full.clone(),
+        if let Some(h) = &self.host {
+            if !self.full.host_names().contains(h) {
+                self.host = None;
+            }
+        }
+        let mut s = if self.team.is_none() && self.host.is_none() {
+            self.full.clone()
+        } else {
+            self.full.scoped(self.team.as_deref(), self.host.as_deref())
         };
+        if !self.show_finished {
+            s.hide_finished();
+        }
+        self.snapshot = s;
+        let valid = self
+            .selected
+            .as_ref()
+            .is_some_and(|id| self.snapshot.agent(id).is_some());
+        if !valid {
+            self.selected = self.ordered().first().map(|a| a.id.clone());
+        }
+    }
+
+    /// Finished agents within the current team/host filter (for History).
+    pub fn finished(&self) -> Vec<&Agent> {
+        let mut v: Vec<&Agent> = self
+            .full
+            .agents
+            .iter()
+            .filter(|a| a.state == crate::model::AgentState::Done)
+            .filter(|a| self.team.as_deref().is_none_or(|t| a.team_key() == t))
+            .filter(|a| self.host.as_deref().is_none_or(|h| a.host == h))
+            .collect();
+        v.sort_by_key(|a| std::cmp::Reverse(a.last_activity));
+        v
+    }
+
+    fn cycle_host(&mut self) {
+        let hosts = self.full.host_names();
+        self.host = match &self.host {
+            None => hosts.first().cloned(),
+            Some(h) => hosts
+                .iter()
+                .position(|x| x == h)
+                .and_then(|i| hosts.get(i + 1).cloned()),
+        };
+        self.refilter();
+    }
+
+    fn on_fleet_key(&mut self, key: KeyEvent) -> bool {
+        let hosts = self.full.host_names();
+        if hosts.is_empty() {
+            return false;
+        }
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.host_cursor = (self.host_cursor + 1) % hosts.len()
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.host_cursor = (self.host_cursor + hosts.len() - 1) % hosts.len()
+            }
+            KeyCode::Enter => {
+                self.host = Some(hosts[self.host_cursor.min(hosts.len() - 1)].clone());
+                self.refilter();
+                self.view = View::Overview;
+            }
+            _ => return false,
+        }
+        true
     }
 
     fn cycle_team(&mut self) {
@@ -407,10 +484,20 @@ impl App {
         if self.view == View::Teams && self.on_teams_key(key) {
             return;
         }
+        if self.view == View::Fleet && self.on_fleet_key(key) {
+            return;
+        }
         match key.code {
             KeyCode::Char(':') => self.input = Some(":".into()),
             KeyCode::Char('>') => self.input = Some(">".into()),
             KeyCode::Char('t') => self.cycle_team(),
+            KeyCode::Char('s') => self.cycle_host(),
+            KeyCode::Char('f') => {
+                self.show_finished = !self.show_finished;
+                self.refilter();
+            }
+            KeyCode::Char('H') => self.view = View::History,
+            KeyCode::F(12) => self.view = View::History,
             KeyCode::Char('T') => self.view = View::Teams,
             KeyCode::Char('g') => self.group_by_team = !self.group_by_team,
             KeyCode::Char('a') => self.decide(true),
@@ -434,11 +521,17 @@ impl App {
                 }
             }
             KeyCode::Esc => {
-                if self.view == View::Overview && self.team.is_some() {
-                    // Leave the team: back to everything, on the Teams view.
+                if self.view == View::Overview && (self.team.is_some() || self.host.is_some()) {
+                    // Leave the team/host: back to everything, where it was chosen.
+                    let back = if self.team.is_some() {
+                        View::Teams
+                    } else {
+                        View::Fleet
+                    };
                     self.team = None;
+                    self.host = None;
                     self.refilter();
-                    self.view = View::Teams;
+                    self.view = back;
                 } else {
                     self.view = View::Overview;
                 }

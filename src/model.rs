@@ -317,13 +317,36 @@ impl Snapshot {
         out.into_iter().map(|(t, _)| t).collect()
     }
 
+    /// Host names in a stable order (busiest first).
+    pub fn host_names(&self) -> Vec<String> {
+        let mut out: Vec<(String, usize)> =
+            self.hosts.iter().map(|h| (h.name.clone(), 0)).collect();
+        for a in &self.agents {
+            match out.iter_mut().find(|(h, _)| *h == a.host) {
+                Some((_, n)) => *n += 1,
+                None => out.push((a.host.clone(), 1)),
+            }
+        }
+        out.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        out.into_iter().map(|(h, _)| h).collect()
+    }
+
     /// Only the agents of `team`, their tools and tasks, and every message
     /// with at least one end in the team (cross-team messages included).
     pub fn filtered(&self, team: &str) -> Snapshot {
+        self.scoped(Some(team), None)
+    }
+
+    /// Agents matching the optional team and host, with their tools, tasks and
+    /// every message that has at least one end among them. Hosts are kept when
+    /// they match the host filter and (with a team filter) run one of the agents.
+    pub fn scoped(&self, team: Option<&str>, host: Option<&str>) -> Snapshot {
+        let keep =
+            |a: &Agent| team.is_none_or(|t| a.team_key() == t) && host.is_none_or(|h| a.host == h);
         let ids: Vec<&str> = self
             .agents
             .iter()
-            .filter(|a| a.team_key() == team)
+            .filter(|a| keep(a))
             .map(|a| a.id.as_str())
             .collect();
         let inside = |id: &str| ids.contains(&id);
@@ -338,7 +361,8 @@ impl Snapshot {
             hosts: self
                 .hosts
                 .iter()
-                .filter(|h| hosts.contains(&h.name.as_str()))
+                .filter(|h| host.is_none_or(|x| h.name == x))
+                .filter(|h| team.is_none() || hosts.contains(&h.name.as_str()))
                 .cloned()
                 .collect(),
             agents: self
@@ -364,11 +388,7 @@ impl Snapshot {
                 .iter()
                 .filter(|t| {
                     t.owner.as_deref().is_none_or(|o| {
-                        inside(o)
-                            || self
-                                .agents
-                                .iter()
-                                .any(|a| a.name == o && a.team_key() == team)
+                        inside(o) || self.agents.iter().any(|a| a.name == o && keep(a))
                     })
                 })
                 .cloned()
@@ -376,6 +396,25 @@ impl Snapshot {
             metrics: self.metrics.clone(),
             source: self.source.clone(),
         }
+    }
+
+    /// Removes finished agents, their tool calls and messages exchanged only among
+    /// finished agents. Hosts are kept.
+    pub fn hide_finished(&mut self) {
+        let done: Vec<String> = self
+            .agents
+            .iter()
+            .filter(|a| a.state == AgentState::Done)
+            .map(|a| a.id.clone())
+            .collect();
+        if done.is_empty() {
+            return;
+        }
+        let gone = |id: &str| done.iter().any(|d| d == id);
+        self.agents.retain(|a| a.state != AgentState::Done);
+        self.tools.retain(|t| !gone(&t.agent));
+        self.messages
+            .retain(|m| !(gone(&m.from) && (gone(&m.to) || m.to == YOU)));
     }
 
     /// Agents ordered as a tree: each root followed by its descendants,
@@ -444,6 +483,36 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(s.tree_order(), vec![(1, 0), (0, 1), (2, 0)]);
+    }
+
+    #[test]
+    fn scoping_and_hiding_finished() {
+        let mut a = agent("a", None);
+        a.host = "h1".into();
+        let mut b = agent("b", Some("a"));
+        b.host = "h2".into();
+        b.state = AgentState::Done;
+        let mut s = Snapshot {
+            agents: vec![a, b],
+            ..Default::default()
+        };
+        s.hosts = ["h1", "h2"]
+            .iter()
+            .map(|n| Host {
+                name: n.to_string(),
+                region: String::new(),
+                connected: true,
+                cpu_pct: 0,
+                mem_pct: 0,
+                rtt_ms: None,
+            })
+            .collect();
+        let h2 = s.scoped(None, Some("h2"));
+        assert_eq!(h2.agents.len(), 1);
+        assert_eq!(h2.hosts.len(), 1);
+        s.hide_finished();
+        assert_eq!(s.agents.len(), 1);
+        assert_eq!(s.hosts.len(), 2);
     }
 
     #[test]

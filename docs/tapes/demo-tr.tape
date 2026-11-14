@@ -55,6 +55,9 @@ Screenshot docs/media/teams-tr.png
 Enter
 Sleep 3s
 Screenshot docs/media/team-overview-tr.png
+Type "H"
+Sleep 2s
+Screenshot docs/media/history-tr.png
 Type "5"
 Type "g"
 Sleep 4s

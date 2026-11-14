@@ -235,3 +235,18 @@ teams-latest = LATEST
 teams-open = open team
 key-team-move = choose team
 key-leave-team = all teams
+
+## Hosts filter and history
+host-label = host
+key-host = host
+key-show-done = show finished
+key-hide-done = hide finished
+fleet-hint = ↑↓ choose a host · enter shows only that host · s cycles hosts anywhere
+view-history = History
+history-title = Finished agents · { $n } · ${ $cost }
+history-hint = finished agents are hidden from other views · f shows them there too
+history-empty = No finished agents yet.
+history-last = Last finished
+col-team = TEAM
+col-finished = FINISHED
+col-outcome = OUTCOME

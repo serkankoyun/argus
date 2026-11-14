@@ -55,7 +55,8 @@ argus                    # watch your own Claude Code sessions
 argus --help             # all options
 ```
 
-Inside Argus: `1`–`0` (or `F1`–`F10`, or a mouse click on the tabs) switch screens, `T` teams, `↑↓` select an agent, `Enter` details,
+Inside Argus: `1`–`0` (or `F1`–`F10`, or a mouse click on the tabs) switch screens, `T` teams,
+`H` history of finished agents, `s` one host at a time, `f` show finished agents, `↑↓` select an agent, `Enter` details,
 `:` command bar, `space` pause, `q` quit.
 
 Optional:

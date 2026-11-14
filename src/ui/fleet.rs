@@ -11,7 +11,7 @@ use crate::app::App;
 use crate::model::{AgentState, Host};
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
-    let rows = app.snapshot.hosts.len() as u16 + 3;
+    let rows = app.full.hosts.len() as u16 + 3;
     let [hosts, mid, cards] = Layout::vertical([
         Constraint::Length(rows.max(5)),
         Constraint::Min(8),
@@ -27,7 +27,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn host_cost(app: &App, h: &Host) -> f64 {
-    app.snapshot
+    app.full
         .agents
         .iter()
         .filter(|a| a.host == h.name)
@@ -52,9 +52,19 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
         .map(|k| Cell::from(i.t(k))),
     )
     .style(Style::new().fg(DIM));
-    let rows = app.snapshot.hosts.iter().map(|h| {
+    // The Fleet view lists every host (unfiltered) so one can be chosen with Enter.
+    let order = app.full.host_names();
+    let mut hosts: Vec<&Host> = app.full.hosts.iter().collect();
+    hosts.sort_by_key(|h| {
+        order
+            .iter()
+            .position(|n| *n == h.name)
+            .unwrap_or(usize::MAX)
+    });
+    let cursor = app.host_cursor % hosts.len().max(1);
+    let rows = hosts.iter().enumerate().map(|(idx, h)| {
         let agents: Vec<_> = app
-            .snapshot
+            .full
             .agents
             .iter()
             .filter(|a| a.host == h.name)
@@ -103,6 +113,11 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
                 Style::new().fg(DIM),
             )),
         ])
+        .style(if idx == cursor {
+            Style::new().bg(SELECTED_BG)
+        } else {
+            Style::new()
+        })
     });
     let widths = [
         Constraint::Length(12),
@@ -119,7 +134,10 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
         Table::new(rows, widths)
             .header(header)
             .column_spacing(1)
-            .block(pane(i.t("pane-hosts"), true)),
+            .block(pane(i.t("pane-hosts"), true).title_bottom(Line::styled(
+                format!(" {} ", i.t("fleet-hint")),
+                Style::new().fg(ACCENT),
+            ))),
         area,
     );
 }
