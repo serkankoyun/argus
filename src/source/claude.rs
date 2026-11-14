@@ -559,8 +559,13 @@ impl Session {
                             );
                         }
                     }
+                    // A background subagent answers at once with a launch notice; its
+                    // real result arrives later, so the notice is not a result.
+                    let launched = text.trim_start().starts_with("Async agent launched");
                     if let Some(sp) = self.spawns.iter_mut().find(|s| s.tool_use_id == id) {
-                        sp.result = Some((ts, text));
+                        if !launched {
+                            sp.result = Some((ts, text));
+                        }
                     }
                 }
                 Some("text") => {
@@ -932,7 +937,9 @@ fn infer_state(s: &Session, alive: bool, now: Millis, all: &[&Session]) -> Agent
             }
         }
     }
-    let live = alive || age < 5 * 60_000;
+    // Subagents are not processes of their own: the parent's process says
+    // nothing about them, only their own activity does.
+    let live = (alive && s.parent.is_none()) || age < 5 * 60_000;
     if !live {
         return AgentState::Done;
     }

@@ -248,3 +248,4 @@ history-last = Son biten
 col-team = TAKIM
 col-finished = BİTİŞ
 col-outcome = SONUÇ
+empty-hidden = { $n } oturum gizli: bitmişler ya da sunucu veya takım filtresi açık. Bitenleri göstermek için f, filtreleri kaldırmak için esc, Geçmiş için H.

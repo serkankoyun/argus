@@ -77,6 +77,12 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
     if app.snapshot.agents.is_empty() {
         let msg = if app.snapshot.taken_at == 0 {
             i.t("loading")
+        } else if !app.full.agents.is_empty() {
+            // Sessions exist; the filters or the finished-agent rule hide them.
+            i.t_args(
+                "empty-hidden",
+                &[("n", app.full.agents.len().to_string().as_str())],
+            )
         } else {
             i.t_args("empty", &[("dir", app.snapshot.source.as_str())])
         };

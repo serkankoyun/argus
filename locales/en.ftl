@@ -250,3 +250,4 @@ history-last = Last finished
 col-team = TEAM
 col-finished = FINISHED
 col-outcome = OUTCOME
+empty-hidden = { $n } sessions are hidden: they finished, or a host or team filter is on. Press f to show finished agents, esc to clear the filters, H for History.

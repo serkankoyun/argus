@@ -330,7 +330,9 @@ one, or call this Argus by its full path.
 v0.1.4 hides finished agents, and v0.1.4–v0.1.5 judged a session finished when no `claude`
 process ran in *exactly* its folder. Sessions that `cd` into a subproject (or teammates
 running inside their lead's process) were hidden after 5 quiet minutes. Update to v0.1.6;
-meanwhile press `f` to show them, or `H` to see what Argus considered finished.
+meanwhile press `f` to show them, or `H` to see what Argus considered finished. Background
+subagents ("Async agent launched successfully") were also marked finished the moment they
+started. v0.1.6 says when sessions are hidden instead of "No recent Claude Code sessions".
 
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
