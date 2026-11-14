@@ -466,6 +466,8 @@ impl Source for DemoSource {
             ),
         ];
 
+        snap.runs = demo_runs(now);
+
         push_metrics(&mut self.metrics, el);
         snap.metrics = self.metrics.clone();
         snap
@@ -508,6 +510,115 @@ fn push_metrics(m: &mut Metrics, el: Millis) {
         (1.0 + wave(t, 5.0, 0.0)).max(0.0).round()
     });
     m.ctx_avg.push(53.0 + 4.0 * wave(t, 31.0, 0.0));
+}
+
+/// Runs an orchestrator would keep in `runs/`, at different stages.
+fn demo_runs(now: Millis) -> Vec<Run> {
+    use StageStatus::*;
+    let min = 60_000;
+    let run = |id: &str,
+               goal: &str,
+               team: &str,
+               lead: Option<&str>,
+               age: i64,
+               st: [(StageStatus, &str, &str, i64, u32); 8]| Run {
+        id: id.into(),
+        goal: goal.into(),
+        team: Some(team.into()),
+        host: "prod-1".into(),
+        created: now - age * min,
+        updated: now - st.iter().map(|s| s.3).min().unwrap_or(0) * min,
+        lead: lead.map(Into::into),
+        stages: STAGES
+            .iter()
+            .zip(st)
+            .map(
+                |(key, (status, decision, owner, ago, rejections))| RunStage {
+                    key: key.to_string(),
+                    status,
+                    decision: decision.into(),
+                    owners: if owner.is_empty() {
+                        vec![]
+                    } else {
+                        vec![owner.into()]
+                    },
+                    since: now - ago * min,
+                    rounds: 1 + rejections,
+                    rejections,
+                },
+            )
+            .collect(),
+    };
+    vec![
+        run(
+            "R-20261114-0910-auth-rate-limit",
+            "auth: rate limiting for /login and token refresh",
+            "auth",
+            Some("lead"),
+            95,
+            [
+                (Done, "", "lead", 80, 0),
+                (Done, "", "lead", 70, 0),
+                (Done, "", "api-dev", 30, 1),
+                (Running, "", "test-runner", 12, 0),
+                (Pending, "", "", 0, 0),
+                (Pending, "", "", 0, 0),
+                (Pending, "", "", 0, 0),
+                (Pending, "", "", 0, 0),
+            ],
+        ),
+        run(
+            "R-20261114-0840-review-pr-231",
+            "review: PR #231 session handling",
+            "review",
+            None,
+            120,
+            [
+                (Skipped, "", "", 0, 0),
+                (Skipped, "", "", 0, 0),
+                (Done, "", "api-dev", 60, 0),
+                (Done, "", "test-runner", 45, 0),
+                (Done, "KABUL", "reviewer", 20, 1),
+                (Running, "", "sec-audit", 9, 0),
+                (Pending, "", "", 0, 0),
+                (Pending, "", "", 0, 0),
+            ],
+        ),
+        run(
+            "R-20261114-0730-data-migration-legacy-ids",
+            "data-migration: move legacy customer ids",
+            "data-migration",
+            None,
+            200,
+            [
+                (Done, "", "migrator", 180, 0),
+                (Done, "", "migrator", 150, 0),
+                (Waiting, "", "migrator", 41, 0),
+                (Pending, "", "", 0, 0),
+                (Rejected, "RET", "reviewer", 60, 2),
+                (Skipped, "", "", 0, 0),
+                (Pending, "", "", 0, 0),
+                (Pending, "", "", 0, 0),
+            ],
+        ),
+        run(
+            "R-20261113-1600-docs-api-guide",
+            "docs: API guide for the new endpoints",
+            "docs",
+            None,
+            1100,
+            [
+                (Done, "", "docs-writer", 1000, 0),
+                (Skipped, "", "", 0, 0),
+                (Done, "", "docs-writer", 900, 0),
+                (Skipped, "", "", 0, 0),
+                (Done, "KABUL", "reviewer", 800, 0),
+                (Skipped, "", "", 0, 0),
+                (Done, "", "", 790, 0),
+                (Done, "", "", 780, 0),
+            ],
+        ),
+    ]
 }
 
 fn task(

@@ -11,6 +11,7 @@ pub mod hook;
 pub mod multi;
 pub mod pricing;
 pub mod remote;
+pub mod runs;
 pub mod system;
 
 use std::sync::mpsc::{self, Receiver, Sender};

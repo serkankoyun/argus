@@ -13,12 +13,18 @@ use ratatui::Frame;
 use super::common::*;
 use super::layout::line_cells;
 use crate::app::App;
-use crate::model::{AgentState, Task, TaskStatus};
+use crate::model::{AgentState, Run, RunStage, StageStatus, Task, TaskStatus};
 
 const CARD_W: u16 = 26;
 const CARD_H: u16 = 5;
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
+    // Orchestrator runs are the unit of work when there are any; plain task
+    // lists (Agent Teams, spawn assignments) otherwise.
+    if !app.snapshot.runs.is_empty() {
+        draw_runs(frame, area, app);
+        return;
+    }
     let [top, bottom] = Layout::vertical([Constraint::Min(12), Constraint::Length(7)]).areas(area);
     let [map, side] = Layout::horizontal([Constraint::Min(40), Constraint::Length(40)]).areas(top);
     let block = pane(app.i18n.t("pane-taskmap"), true);
@@ -204,6 +210,256 @@ fn draw_map(buf: &mut Buffer, area: Rect, app: &App) {
             )
             .render(r, buf);
     }
+}
+
+fn stage_color(s: StageStatus) -> Color {
+    match s {
+        StageStatus::Done => GREEN,
+        StageStatus::Running => CYAN,
+        StageStatus::Waiting | StageStatus::Blocked => AMBER,
+        StageStatus::Rejected => RED,
+        StageStatus::Pending => DIM,
+        StageStatus::Skipped => BORDER,
+    }
+}
+
+fn stage_label(app: &App, key: &str) -> String {
+    app.i18n.t(&format!("stage-{key}"))
+}
+
+fn team_label(app: &App, team: Option<&str>) -> String {
+    match team {
+        Some(t) => app.snapshot.team_label(t).unwrap_or(t).to_string(),
+        None => "—".into(),
+    }
+}
+
+/// The goal without a leading run id or `team:` prefix.
+fn goal_text(r: &Run) -> &str {
+    let g = crate::model::task_text(&r.goal);
+    match (&r.team, g.split_once(':')) {
+        (Some(t), Some((head, rest))) if head.trim() == t => rest.trim(),
+        _ => g,
+    }
+}
+
+fn since(app: &App, at: crate::model::Millis) -> String {
+    duration(((app.now - at).max(0) / 1000) as u64)
+}
+
+fn run_lines<'a>(app: &App, r: &'a Run, width: usize) -> Vec<Line<'a>> {
+    let i = &app.i18n;
+    let cur = r.current();
+    let (glyph, gc) = match cur.map(|s| s.status) {
+        Some(StageStatus::Running) => (spinner(app), CYAN),
+        Some(StageStatus::Waiting) => ("◐", AMBER),
+        Some(StageStatus::Rejected) => ("✗", RED),
+        Some(StageStatus::Blocked) => ("▲", AMBER),
+        Some(_) => ("○", DIM),
+        None => ("✓", GREEN_DIM),
+    };
+    let team = team_label(app, r.team.as_deref());
+    let start =
+        r.id.get(11..15)
+            .map(|t| format!("{}:{}", &t[..2], &t[2..]))
+            .unwrap_or_default();
+    let meta = i.t_args(
+        "run-meta",
+        &[
+            ("start", start.as_str()),
+            ("ago", since(app, r.updated).as_str()),
+        ],
+    );
+    let room = width.saturating_sub(team.chars().count() + meta.chars().count() + 6);
+    let mut lines = vec![Line::from(vec![
+        Span::styled(format!("{glyph} "), Style::new().fg(gc)),
+        Span::styled(team, bold().fg(PURPLE)),
+        Span::raw("  "),
+        Span::styled(trunc(goal_text(r), room.max(10)), bold().fg(FG)),
+        Span::styled(format!("  {meta}"), Style::new().fg(DIM)),
+    ])];
+    let mut chips = vec![Span::raw("  ")];
+    for (k, st) in r.stages.iter().enumerate() {
+        if k > 0 {
+            chips.push(Span::styled(" › ", Style::new().fg(BORDER)));
+        }
+        let mut text = format!("{} {}", st.status.glyph(), stage_label(app, &st.key));
+        if !st.decision.is_empty() {
+            text.push(' ');
+            text.push_str(&st.decision);
+        }
+        let style = Style::new().fg(stage_color(st.status));
+        let style = if cur.is_some_and(|c| c.key == st.key) {
+            style.bg(SELECTED_BG)
+        } else {
+            style
+        };
+        chips.push(Span::styled(text, style));
+    }
+    lines.push(Line::from(chips));
+    // Who has it now, since when, and what holds it back.
+    let mut who = vec![Span::raw("  ")];
+    if let Some(c) = cur.filter(|c| !c.owners.is_empty() && c.status.active()) {
+        who.push(Span::styled(
+            format!("{}: ", stage_label(app, &c.key)),
+            Style::new().fg(DIM),
+        ));
+        who.push(Span::styled(c.owners.join(", "), Style::new().fg(FG)));
+        who.push(Span::styled(
+            format!(" · {}", since(app, c.since)),
+            Style::new().fg(DIM),
+        ));
+    }
+    if let Some(l) = &r.lead {
+        who.push(Span::styled(
+            format!("   {} ", i.t("run-lead")),
+            Style::new().fg(DIM),
+        ));
+        who.push(Span::styled(l.clone(), Style::new().fg(PURPLE)));
+    }
+    for st in r.stages.iter().filter(|s| s.rejections > 0) {
+        who.push(Span::styled(
+            format!(
+                "   {}",
+                i.t_args(
+                    "run-rejects",
+                    &[
+                        ("stage", stage_label(app, &st.key).as_str()),
+                        ("n", st.rejections.to_string().as_str()),
+                    ],
+                )
+            ),
+            Style::new().fg(RED),
+        ));
+    }
+    if who.len() > 1 {
+        lines.push(Line::from(who));
+    }
+    lines.push(Line::raw(""));
+    lines
+}
+
+fn draw_runs(frame: &mut Frame, area: Rect, app: &App) {
+    let i = &app.i18n;
+    let [list, side] =
+        Layout::horizontal([Constraint::Min(60), Constraint::Length(46)]).areas(area);
+    let runs = &app.snapshot.runs;
+    let active = runs.iter().filter(|r| r.active()).count();
+    let title = i.t_args(
+        "pane-runs",
+        &[
+            ("n", active.to_string().as_str()),
+            ("total", runs.len().to_string().as_str()),
+        ],
+    );
+    let width = list.width.saturating_sub(2) as usize;
+    let lines: Vec<Line> = runs.iter().flat_map(|r| run_lines(app, r, width)).collect();
+    frame.render_widget(Paragraph::new(lines).block(pane(title, true)), list);
+    draw_run_bottlenecks(frame, side, app);
+}
+
+/// Stages held longest, rework loops, and blocked stages.
+fn draw_run_bottlenecks(frame: &mut Frame, area: Rect, app: &App) {
+    let i = &app.i18n;
+    let runs = &app.snapshot.runs;
+    let w = area.width.saturating_sub(4) as usize;
+    let mut lines = vec![Line::styled(i.t("bn-slow"), bold().fg(AMBER))];
+    let mut slow: Vec<(&Run, &RunStage)> = runs
+        .iter()
+        .flat_map(|r| r.stages.iter().map(move |s| (r, s)))
+        .filter(|(_, s)| s.status.active())
+        .collect();
+    slow.sort_by_key(|(_, s)| s.since);
+    for (r, s) in slow.iter().take(5) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{} ", s.status.glyph()),
+                Style::new().fg(stage_color(s.status)),
+            ),
+            Span::styled(
+                format!("{:<12}", trunc(&stage_label(app, &s.key), 11)),
+                Style::new().fg(FG),
+            ),
+            Span::styled(since(app, s.since), bold().fg(AMBER)),
+        ]));
+        lines.push(Line::styled(
+            format!(
+                "  {}",
+                trunc(
+                    &format!(
+                        "{} · {}",
+                        team_label(app, r.team.as_deref()),
+                        s.owners.join(", ")
+                    ),
+                    w
+                )
+            ),
+            Style::new().fg(DIM),
+        ));
+    }
+    if slow.is_empty() {
+        lines.push(Line::styled(i.t("bn-none"), Style::new().fg(DIM)));
+    }
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(i.t("bn-rejects"), bold().fg(RED)));
+    let mut loops: Vec<(&Run, &RunStage)> = runs
+        .iter()
+        .flat_map(|r| r.stages.iter().map(move |s| (r, s)))
+        .filter(|(_, s)| s.rejections > 0)
+        .collect();
+    loops.sort_by_key(|(r, s)| {
+        (
+            std::cmp::Reverse(s.rejections),
+            std::cmp::Reverse(r.updated),
+        )
+    });
+    for (r, s) in loops.iter().take(5) {
+        lines.push(Line::from(vec![
+            Span::styled(format!("✗ {}× ", s.rejections), Style::new().fg(RED)),
+            Span::styled(
+                format!("{} · ", stage_label(app, &s.key)),
+                Style::new().fg(FG),
+            ),
+            Span::styled(
+                trunc(&team_label(app, r.team.as_deref()), w.saturating_sub(14)),
+                Style::new().fg(PURPLE),
+            ),
+        ]));
+        lines.push(Line::styled(
+            format!("  {}", trunc(goal_text(r), w)),
+            Style::new().fg(DIM),
+        ));
+    }
+    if loops.is_empty() {
+        lines.push(Line::styled(i.t("bn-none"), Style::new().fg(DIM)));
+    }
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(i.t("bn-blocked"), bold().fg(AMBER)));
+    let blocked: Vec<(&Run, &RunStage)> = runs
+        .iter()
+        .flat_map(|r| r.stages.iter().map(move |s| (r, s)))
+        .filter(|(_, s)| s.status == StageStatus::Blocked)
+        .collect();
+    for (r, s) in blocked.iter().take(5) {
+        lines.push(Line::from(vec![
+            Span::styled("▲ ", Style::new().fg(AMBER)),
+            Span::styled(
+                format!("{} · ", stage_label(app, &s.key)),
+                Style::new().fg(FG),
+            ),
+            Span::styled(
+                trunc(goal_text(r), w.saturating_sub(14)),
+                Style::new().fg(DIM),
+            ),
+        ]));
+    }
+    if blocked.is_empty() {
+        lines.push(Line::styled(i.t("bn-none"), Style::new().fg(DIM)));
+    }
+    frame.render_widget(
+        Paragraph::new(lines).block(pane(i.t("pane-bottlenecks"), false)),
+        area,
+    );
 }
 
 fn draw_side(frame: &mut Frame, area: Rect, app: &App) {

@@ -36,6 +36,7 @@ impl Source for MultiSource {
             out.messages.extend(snap.messages);
             out.tools.extend(snap.tools);
             out.tasks.extend(snap.tasks);
+            out.runs.extend(snap.runs);
             out.team_labels.extend(snap.team_labels);
             out.warnings.extend(snap.warnings);
         }

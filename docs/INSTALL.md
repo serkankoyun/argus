@@ -278,6 +278,32 @@ also keeps your existing rules and only adds to them. Agents matching no code ge
 `default`.
 Changes are picked up within a second; no restart needed.
 
+### Runs and stages in the Task map
+
+If an orchestrator keeps its units of work in a `runs/` folder (next to a session's working
+folder or up to three levels above it), the Task map (`9`) shows one row per run instead of
+task boxes: its goal and team, eight stage chips (Analysis, Plan, Development, Test, QA,
+Security, CI, Merge) and who has the current stage. A **Bottlenecks** panel lists the stages
+held longest, rework loops (rejections per stage) and blocked stages.
+
+```
+runs/R-20261114-1720-nav-demo/
+  run.json      {"id": "...", "goal": "...", "createdAt": "...",
+                 "stages": [{"id": "dev", "agent": "orchestra-developer"}, ...]}
+  dev.md        ---\nstage: dev\nstatus: done\n---   (pending | in-progress | done | blocked | skipped)
+  qa.md         a line "Karar: KABUL" / "Decision: REJECT" / "RET" alone; the last one counts
+  qa-2.md       extra files <stage>-<suffix>.md belong to the same stage
+```
+
+Everything is optional. Files left `pending` are templates: their text is not read as a
+decision. Agents whose spawn description names the run (`<agent-name> · R-20261114-1720-x ·
+<task>` or `R-20261114-1720-x <agent-name>`) fill in what files do not say: a live agent
+makes its stage running (waiting when it waits), a finished one marks it done. Its stage
+comes from its agent type (`stages[].agent` in `run.json`, else words such as `analyst`,
+`developer`, `test`, `qa`, `security`, `ci`). Stages nobody worked on while later ones went
+ahead show as skipped. Runs untouched for three days are not read; without any run the Task
+map shows task dependencies as before.
+
 ## 4. Watching remote machines over SSH (optional)
 
 Argus reuses your own `ssh`, so everything in `~/.ssh/config` works (aliases, keys,
@@ -415,6 +441,12 @@ v0.1.26 commands lose their `cd`/variable set-up, Room and Network boxes show ea
 and activity like the Teams view, and an agent named `agent-…` takes the name its task starts
 with (`<agent-name> · <run> · <task>`). Spawn events that carry `agentId` (a lead starting its
 own agents) set the parent.
+
+**Task map shows boxes titled with a session id, "106 tasks, 102 done"** — Before v0.1.29 it
+mapped agents. It now maps orchestrator runs when a `runs/` folder exists (see "Runs and
+stages in the Task map"). Agents started with a description like `R-20261114-1842-x
+analist-hekim-verisi` were named after the run id; since v0.1.29 the word after the run id
+is their name.
 
 **Task lines start with `· ` or independent reviewers sit inside a team** — Event writers that
 move the run id into its own field may keep its separator (`"desc":"· Kurulum sihirbazı …"`);

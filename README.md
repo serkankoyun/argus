@@ -52,7 +52,7 @@ conversation between your agents.
 | 6 | Room | What each agent is doing now and what it is asking for |
 | 7 | Lanes | Scrolling per-agent timelines with cross-agent messages |
 | 8 | Channel | IRC-style live chat between agents |
-| 9 | Task map | Task dependencies, hand-offs and bottlenecks |
+| 9 | Task map | Orchestrator runs with their stages (analysis → merge), who has each, rework loops and bottlenecks; task dependencies when there are no runs |
 | 0 | Pair | Two agents side by side, their conversation in between |
 | t | Teams | Coordinator, a card per busy team, cross-team requests |
 | H | History | Finished agents with duration, cost and outcome |

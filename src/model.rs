@@ -132,6 +132,13 @@ pub struct Agent {
     /// Starts and steers other agents.
     #[serde(default)]
     pub coordinator: bool,
+    /// Orchestrator run it works for (`R-20261114-1720-...`), from its
+    /// spawn description or events.
+    #[serde(default)]
+    pub run: String,
+    /// Agent type it was started as (`subagent_type`, e.g. `orchestra-developer`).
+    #[serde(default)]
+    pub agent_type: String,
 }
 
 impl Agent {
@@ -327,6 +334,138 @@ pub struct Snapshot {
     /// Problems worth showing to the user: (message id, argument).
     #[serde(default)]
     pub warnings: Vec<(String, String)>,
+    /// Orchestrator runs (units of work with stages), newest first.
+    #[serde(default)]
+    pub runs: Vec<Run>,
+}
+
+/// The pipeline stages of a run, in order.
+pub const STAGES: [&str; 8] = [
+    "analysis", "plan", "dev", "test", "qa", "security", "ci", "merge",
+];
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StageStatus {
+    #[default]
+    Pending,
+    Running,
+    /// Its agent waits (on a background job, on agents it started, on approval).
+    Waiting,
+    Done,
+    /// The latest decision rejected the work (RET, VETO).
+    Rejected,
+    Blocked,
+    /// Not part of this run's pipeline.
+    Skipped,
+}
+
+impl StageStatus {
+    pub fn glyph(self) -> &'static str {
+        match self {
+            StageStatus::Pending => "○",
+            StageStatus::Running => "●",
+            StageStatus::Waiting => "◐",
+            StageStatus::Done => "✓",
+            StageStatus::Rejected => "✗",
+            StageStatus::Blocked => "▲",
+            StageStatus::Skipped => "-",
+        }
+    }
+
+    pub fn active(self) -> bool {
+        matches!(self, StageStatus::Running | StageStatus::Waiting)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunStage {
+    /// One of [`STAGES`].
+    pub key: String,
+    pub status: StageStatus,
+    /// Latest review decision as written (`KABUL`, `RET`, `ONAY`, `VETO`, ...).
+    pub decision: String,
+    /// Names of the agents working on it now (or last, when none is live).
+    pub owners: Vec<String>,
+    /// Since when it is in its current status.
+    pub since: Millis,
+    /// Agents started for it (dev and test rounds).
+    pub rounds: u32,
+    /// Rejecting decisions so far (rework loops).
+    pub rejections: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Run {
+    pub id: String,
+    pub goal: String,
+    pub team: Option<String>,
+    pub host: String,
+    pub created: Millis,
+    /// Latest change: a stage file or an agent's activity.
+    pub updated: Millis,
+    /// Always the eight [`STAGES`], in order.
+    pub stages: Vec<RunStage>,
+    /// Name of the team lead driving it, when one started its agents.
+    pub lead: Option<String>,
+}
+
+impl Run {
+    pub fn active(&self) -> bool {
+        self.stages.iter().any(|s| s.status.active())
+    }
+
+    /// The stage the run is in: the first active one, else the first one that
+    /// is neither done nor skipped.
+    pub fn current(&self) -> Option<&RunStage> {
+        self.stages
+            .iter()
+            .find(|s| s.status.active())
+            .or_else(|| {
+                self.stages
+                    .iter()
+                    .find(|s| matches!(s.status, StageStatus::Rejected | StageStatus::Blocked))
+            })
+            .or_else(|| {
+                self.stages
+                    .iter()
+                    .find(|s| s.status == StageStatus::Pending)
+            })
+    }
+}
+
+/// The agent name in a spawn description, by the conventions orchestrators
+/// use for agents started without a `name`: `<agent-name> · <run> · <task>`
+/// or `<run> <agent-name>`. A name is one lowercase kebab-case word.
+pub fn name_in_description(desc: &str) -> Option<&str> {
+    let is_name = |t: &str| {
+        t.contains('-')
+            && run_id_in(t).is_none()
+            && t.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+    };
+    let parts: Vec<&str> = desc.split(" · ").map(str::trim).collect();
+    if parts.len() > 1 {
+        return parts.into_iter().find(|p| is_name(p));
+    }
+    let words: Vec<&str> = desc.split_whitespace().collect();
+    match words.as_slice() {
+        [w] if is_name(w) => Some(w),
+        [a, b] if run_id_in(a).is_some() && is_name(b) => Some(b),
+        _ => None,
+    }
+}
+
+/// The run id in a description or task (`R-20261114-1720-slug`), if any.
+pub fn run_id_in(text: &str) -> Option<&str> {
+    text.split(|c: char| c.is_whitespace() || c == '·' || c == ',' || c == '(' || c == ')')
+        .map(|t| t.trim_matches(|c: char| c == ':' || c == '`' || c == '"' || c == '*'))
+        .find(|t| {
+            let b = t.as_bytes();
+            b.len() >= 11
+                && t.starts_with("R-")
+                && b[2..10].iter().all(u8::is_ascii_digit)
+                && b[10] == b'-'
+        })
 }
 
 impl Snapshot {
@@ -448,6 +587,13 @@ impl Snapshot {
             source: self.source.clone(),
             team_labels: self.team_labels.clone(),
             warnings: self.warnings.clone(),
+            runs: self
+                .runs
+                .iter()
+                .filter(|r| team.is_none_or(|t| r.team.as_deref() == Some(t)))
+                .filter(|r| host.is_none_or(|h| r.host == h))
+                .cloned()
+                .collect(),
         }
     }
 

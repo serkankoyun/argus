@@ -48,10 +48,18 @@ session. Read `CLAUDE.md` and `docs/PROJECT_BRIEF.md` first.
 
 - #5 / #9: verified on live data with v0.1.27 (waiting leads and coordinators, nested
   parents, names, teams).
-- #10: Network "Independent" cluster and lead→child edges, Room team tables, and the
-  **Görev haritası** redesign: map runs (`runs/<run-id>/run.json` and stage files) with stage
-  chips Analiz → Plan → Geliştirme → Test → QA → Güvenlik → CI → Birleşme and a bottleneck
-  panel, instead of agents.
+- #10: done in v0.1.27–v0.1.29: lead→child edges, the independent cluster
+  (`independent_roles` in teams.json), WAITING requests, and the run-based Görev haritası.
+  Still open there: Room laid out as team tables (lead first, independent reviewers apart).
+
+## Run files as written today (Nov 14)
+
+- `orchestra run new` writes every stage file up front with `status: pending` and a body
+  that contains `## Karar: KABUL / RET`; most files stay that way while agents do the work.
+- Extra work items in one run use `<stage>-<suffix>.md` (`dev-kirilgan-test.md`); a review
+  round appends its decision at the end of the same file (`## Karar: RET` ... `## Karar: KABUL`).
+- Security writes `**Karar: KOŞULLU ONAY.**`. Some coordinators describe agents as
+  `R-<run> <agent-name>` without `name`.
 
 ## Access this session needs
 

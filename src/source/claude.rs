@@ -46,12 +46,14 @@ pub struct ClaudeSource {
     last_poll: Option<(Millis, u64, f64)>,
     host_name: String,
     events: events::EventLog,
+    runs: super::runs::RunReader,
 }
 
 impl ClaudeSource {
     pub fn new(root: PathBuf) -> Self {
         Self {
             events: events::EventLog::new(events::dirs(&root)),
+            runs: super::runs::RunReader::default(),
             root,
             files: HashMap::new(),
             probe: SystemProbe::new(),
@@ -183,6 +185,9 @@ impl Source for ClaudeSource {
             // No Agent Teams task list: every subagent's assignment is a task.
             snap.tasks = spawn_tasks(&snap);
         }
+        let dirs = super::runs::find_dirs(snap.agents.iter().map(|a| a.cwd.as_str()));
+        let found = self.runs.read(&dirs, now);
+        snap.runs = super::runs::build_runs(found, &snap, &host.name, now);
         snap.hosts = vec![Host {
             name: host.name.clone(),
             region: "local".into(),
@@ -902,6 +907,13 @@ pub fn build_snapshot<'a>(
             files: s.files.clone(),
             transcript: s.transcript.clone(),
             task: task_for(s, &sessions),
+            run: run_of(s, &sessions),
+            agent_type: sessions
+                .iter()
+                .find(|p| Some(&p.id) == s.parent.as_ref())
+                .and_then(|p| spawn_of(p, s))
+                .map(|sp| sp.agent_type.clone())
+                .unwrap_or_default(),
             ..Agent::default()
         });
         snap.tools.extend(s.tools.iter().cloned());
@@ -1175,10 +1187,18 @@ fn task_for(s: &Session, all: &[&Session]) -> String {
         return s.last_prompt.clone();
     }
     let mut desc = spawn_description(s, all).unwrap_or_default();
-    // "<agent-name> · <run> · <task>": the name is shown elsewhere.
-    if let Some((name, rest)) = desc.split_once(" · ") {
-        if !name.trim().contains(' ') {
-            desc = rest.to_string();
+    // "<agent-name> · <run> · <task>", "<run> <agent-name>": the name is
+    // shown elsewhere.
+    if let Some(name) = crate::model::name_in_description(&desc) {
+        desc = desc
+            .replacen(name, "", 1)
+            .trim()
+            .trim_start_matches(['·', ' '])
+            .to_string();
+        // Only "<run> <agent-name>": the name says what it does; the prompt
+        // opens with header fields, not with the task.
+        if task_text(&desc).is_empty() && !desc.is_empty() {
+            return desc;
         }
     }
     if !task_text(&desc).is_empty() {
@@ -1190,6 +1210,20 @@ fn task_for(s: &Session, all: &[&Session]) -> String {
     } else {
         prompt
     }
+}
+
+/// The orchestrator run a subagent works for: named in its spawn description,
+/// else in the first lines of its prompt ("Akış: R-...").
+fn run_of(s: &Session, all: &[&Session]) -> String {
+    if s.parent.is_none() {
+        return String::new();
+    }
+    let desc = spawn_description(s, all).unwrap_or_default();
+    let head: String = s.first_prompt.chars().take(300).collect();
+    crate::model::run_id_in(&desc)
+        .or_else(|| crate::model::run_id_in(&head))
+        .unwrap_or("")
+        .to_string()
 }
 
 fn spawn_description(s: &Session, all: &[&Session]) -> Option<String> {
@@ -1206,12 +1240,10 @@ fn agent_name(s: &Session, all: &[&Session]) -> String {
     if let Some(parent) = &s.parent {
         if let Some(p) = all.iter().find(|p| &p.id == parent) {
             if let Some(sp) = spawn_of(p, s) {
-                // Convention for unnamed agents: "<agent-name> · <run> · <task>".
-                if let Some((name, _)) = sp.description.split_once(" · ") {
-                    let name = name.trim();
-                    if !name.is_empty() && !name.contains(' ') {
-                        return name.to_string();
-                    }
+                // Conventions for unnamed agents: "<agent-name> · <run> · <task>",
+                // "<run> <agent-name>".
+                if let Some(name) = crate::model::name_in_description(&sp.description) {
+                    return name.to_string();
                 }
                 let base = if sp.agent_type.is_empty() || sp.agent_type == "general-purpose" {
                     &sp.description

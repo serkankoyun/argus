@@ -29,6 +29,7 @@ each other**. It brings agents running on different machines into a single scree
 | Network view | With a coordinator or team labels it shows the hierarchy: coordinators on top, a cluster per team (label as title), leads above the agents they started; `g` switches to host bands. Unknown ids are named from their task message |
 | Nesting | Coordinator → team lead → the lead's agents. Parents come from spawn results (agentId), not from the file layout (all subagents of a session are stored flat); unnamed agents are named from `<name> · <run> · <task>` descriptions; teams are inherited from the parent |
 | Focus | Views show live agents only: finished agents move to the History view (`H`, `f` toggles). `s` / Fleet+Enter scope every view to one host, `t` opens Teams, Enter scopes every view to one team (`T` cycles); both combine |
+| Runs | A run is read from `runs/<run-id>/` (`run.json`, stage files with front matter and a decision line) and from agents whose description names the run id. Files are often left `pending`, so live agents are the main signal; a `pending` file is a template and its text is never a decision; the last decision in a file counts (rounds are appended). Agent type → stage via `run.json` `stages[].agent`. Leads (agents that started others for the run) are not stage workers |
 | Aesthetic | Dark theme, monospace, ratatui bordered panes, braille lines, no cartoons |
 
 ## Screens (10)
@@ -43,7 +44,10 @@ Design mockups (private canvas, owner only): https://claude.ai/artifact/7QZw7PkM
 6. **Agent room** — a "now" line on every agent, a bubble for the request it is sending, open requests with wait times
 7. **Live lanes** — time flows right to left, vertical arrows between agents, "who asks whom for what" matrix
 8. **Channel** — IRC/weechat-style live chat with action and approval lines, member list
-9. **Task map** — task dependencies, hand-offs, bottlenecks and the critical path
+9. **Task map** — the work, not the agents: one row per orchestrator run (`runs/<run-id>/`)
+   with stage chips Analysis → Plan → Development → Test → QA → Security → CI → Merge, who
+   has the current stage, and a bottleneck panel (longest stages, rework loops, blocked).
+   Falls back to task dependencies and the critical path when there are no runs
 10. **Pair view** — two agents' terminals side by side with the message channel between them
 
 Switching: `1`–`0`, `tab`, `:view <name>`. The selected agent and time cursor carry over between views.

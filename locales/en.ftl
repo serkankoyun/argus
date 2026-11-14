@@ -201,6 +201,22 @@ bottlenecks-none = Nothing is blocked.
 holds-n = holds up { $n } task(s)
 critical-path = Critical path
 tasks-progress = { $done } of { $total } tasks done
+stage-analysis = Analysis
+stage-plan = Plan
+stage-dev = Development
+stage-test = Test
+stage-qa = QA
+stage-security = Security
+stage-ci = CI
+stage-merge = Merge
+pane-runs = Runs · { $n } active of { $total }
+run-meta = started { $start } · last work { $ago } ago
+run-lead = lead
+run-rejects = { $stage } rejected { $n }×
+bn-slow = Longest in a stage
+bn-rejects = Rework loops
+bn-blocked = Blocked
+bn-none = none
 pane-utilization = Agent utilization · 15 min
 
 ## Pair

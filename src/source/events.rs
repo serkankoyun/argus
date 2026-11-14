@@ -70,6 +70,10 @@ pub struct Event {
     pub desc: String,
     /// The current task of the agent that wrote the event (any event may set it).
     pub task: String,
+    /// Orchestrator run the spawned agent works for.
+    pub run: String,
+    /// On a spawn event: the type the subagent was started as.
+    pub agent_type: String,
 }
 
 /// Permission modes in which Claude Code never shows a permission prompt.
@@ -112,6 +116,8 @@ pub fn parse(line: &str) -> Option<Event> {
         team: text(&v, &["team", "teamName"]),
         desc: text(&v, &["desc", "description"]),
         task: text(&v, &["task"]),
+        run: text(&v, &["run", "runId", "run_id"]),
+        agent_type: text(&v, &["subagentType", "subagent_type", "agentType"]),
     })
 }
 
@@ -184,6 +190,8 @@ pub struct EventLog {
     pub identities: HashMap<String, (String, String, String)>,
     /// Spawned agent id -> id of the agent whose spawn event started it.
     pub spawners: HashMap<String, String>,
+    /// Spawned agent id -> (run, agent type) from its spawn event.
+    pub runs: HashMap<String, (String, String)>,
 }
 
 impl EventLog {
@@ -234,6 +242,12 @@ impl EventLog {
                 format!("{}/{}", e.sid, e.agent_id)
             };
             self.spawners.insert(format!("{}/{}", e.sid, e.spawned), by);
+            if !e.run.is_empty() || !e.agent_type.is_empty() {
+                self.runs.insert(
+                    format!("{}/{}", e.sid, e.spawned),
+                    (e.run.clone(), e.agent_type.clone()),
+                );
+            }
             // The spawn itself is a tool event of the spawning session.
             let parent = Event {
                 spawned: String::new(),
@@ -313,11 +327,25 @@ impl EventLog {
                 if !team.is_empty() {
                     a.team = Some(team.clone());
                 }
-                // An explicit task from events beats a guess; a bare run id does not.
+                // An explicit task from events beats a guess; a bare run id or
+                // a bare agent name ("desc":"analist-hekim-verisi") does not.
+                let bare_name = crate::model::name_in_description(task) == Some(task.trim());
+                if bare_name && a.name.starts_with("agent-") {
+                    a.name = task.trim().to_string();
+                }
                 if !task.is_empty()
+                    && !bare_name
                     && (a.task.is_empty() || !crate::model::task_text(task).is_empty())
                 {
                     a.task = task.clone();
+                }
+            }
+            if let Some((run, kind)) = self.runs.get(&a.id) {
+                if a.run.is_empty() && crate::model::run_id_in(run).is_some() {
+                    a.run = run.clone();
+                }
+                if a.agent_type.is_empty() {
+                    a.agent_type = kind.clone();
                 }
             }
             let (root, sub) = match a.id.split_once('/') {

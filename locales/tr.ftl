@@ -199,6 +199,22 @@ bottlenecks-none = Engellenen görev yok.
 holds-n = { $n } görevi bekletiyor
 critical-path = Kritik yol
 tasks-progress = { $total } görevden { $done } tanesi bitti
+stage-analysis = Analiz
+stage-plan = Plan
+stage-dev = Geliştirme
+stage-test = Test
+stage-qa = QA
+stage-security = Güvenlik
+stage-ci = CI
+stage-merge = Birleşme
+pane-runs = Akışlar · { $total } akıştan { $n } tanesi aktif
+run-meta = başladı { $start } · son iş { $ago } önce
+run-lead = lider
+run-rejects = { $stage } { $n }× RET
+bn-slow = En uzun süren aşamalar
+bn-rejects = RET döngüleri
+bn-blocked = Engelli
+bn-none = yok
 pane-utilization = Ajan doluluğu · 15 dk
 
 ## Pair
