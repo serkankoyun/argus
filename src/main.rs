@@ -142,8 +142,14 @@ fn print_snapshot(mut source: Box<dyn Source>, wait: u64) -> Result<()> {
         std::thread::sleep(POLL);
         snap = source.poll();
     }
-    serde_json::to_writer_pretty(std::io::stdout(), &snap)?;
-    println!();
+    use std::io::Write;
+    // A closed pipe (`argus snapshot | head`) is not an error.
+    let mut out = std::io::stdout().lock();
+    match serde_json::to_writer_pretty(&mut out, &snap).map_err(std::io::Error::from) {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => return Ok(()),
+        r => r?,
+    }
+    let _ = writeln!(out);
     Ok(())
 }
 
