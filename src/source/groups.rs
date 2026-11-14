@@ -229,6 +229,7 @@ mod tests {
             "qa-karar-kural-liste-alimi",
             "testci-karar-kural-kanal-esitligi",
             "gelistirici-provizyon-dis-kurum",
+            "testci-provizyon-dis-kurum",
             "qa-provizyon-dis-kurum",
             "analist-kurum-agi-provider",
             "mimar-kurum-agi-network-adr",
