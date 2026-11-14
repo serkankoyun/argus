@@ -249,3 +249,10 @@ col-team = TAKIM
 col-finished = BİTİŞ
 col-outcome = SONUÇ
 empty-hidden = { $n } oturum gizli: bitmişler ya da sunucu veya takım filtresi açık. Bitenleri göstermek için f, filtreleri kaldırmak için esc, Geçmiş için H.
+
+## argus init
+init-default-team = ekipsiz
+init-none = { $n } ajan adında ekip kalıbı bulunamadı. rol-ekip-iş biçimindeki adlar (örneğin qa-odeme-iade) gruplanabilir; değilse teams.json dosyasını elle yazın (INSTALL.md).
+init-preview = Bu kurallarla ekip başına ajan sayısı:
+init-hint = Hiçbir şey kaydedilmedi. Kuralları { $path } dosyasına kaydetmek için `argus init --write` çalıştırın, sonra gerekirse dosyayı düzenleyin.
+init-written = { $path } dosyasına kaydedildi. Argus bir saniye içinde okur; ekipleri yeniden adlandırmak veya ad eklemek için dosyayı düzenleyin.

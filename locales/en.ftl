@@ -251,3 +251,10 @@ col-team = TEAM
 col-finished = FINISHED
 col-outcome = OUTCOME
 empty-hidden = { $n } sessions are hidden: they finished, or a host or team filter is on. Press f to show finished agents, esc to clear the filters, H for History.
+
+## argus init
+init-default-team = no-team
+init-none = No team pattern found in { $n } agent names. Names shaped like role-team-work (for example qa-payments-refunds) can be grouped; otherwise write teams.json by hand (see INSTALL.md).
+init-preview = Agents per team with these rules:
+init-hint = Nothing saved. Run `argus init --write` to save these rules to { $path }, then edit the file if needed.
+init-written = Saved to { $path }. Argus picks it up within a second; edit the file to rename teams or add labels.

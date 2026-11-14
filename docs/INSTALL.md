@@ -233,6 +233,11 @@ approvals then reach your local Argus over SSH.
 
 ### Grouping agents into your own teams
 
+Shortcut: run `argus init` on the machine that runs the agents. It reads the agent names
+of the last 24 hours, finds a `role-team-work` pattern if there is one, and prints the
+rules and how many agents each team would get. `argus init --write` saves them (keeping a
+`.bak` of an existing file). For remote machines: `~/.cache/argus/argus init --write`.
+
 Argus groups agents by Agent Teams team when you use that feature, by a `team` reported in
 events ([EVENTS.md](EVENTS.md)), and otherwise by project folder. If your orchestrator encodes
 the team in agent names (for example `qa-payments-review`), describe it in

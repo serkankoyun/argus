@@ -74,6 +74,12 @@ enum Cmd {
         #[arg(long)]
         event: bool,
     },
+    /// Suggest team rules from the agents' names (`<role>-<team>-<work>`).
+    Init {
+        /// Save the suggestion to <claude dir>/argus/teams.json (a backup is kept).
+        #[arg(long)]
+        write: bool,
+    },
     /// Print one snapshot as JSON and exit (for scripts and tests).
     Snapshot {
         /// Seconds to keep polling before printing (lets remote hosts connect).
@@ -115,6 +121,7 @@ fn main() -> Result<()> {
             wait,
             ..
         }) => return source::hook::run(&claude_dir, Duration::from_secs(wait)),
+        Some(Cmd::Init { write }) => return init(&claude_dir, write, cli.lang.as_deref()),
         _ => {}
     }
     let i18n = I18n::new(cli.lang.as_deref());
@@ -144,6 +151,61 @@ fn main() -> Result<()> {
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     ratatui::restore();
     result
+}
+
+/// `argus init`: proposes (and with `--write` saves) team rules.
+fn init(claude_dir: &std::path::Path, write: bool, lang: Option<&str>) -> Result<()> {
+    use source::groups;
+    let i18n = I18n::new(lang);
+    let mut src = ClaudeSource::new(claude_dir.to_path_buf());
+    let _ = src.poll();
+    std::thread::sleep(Duration::from_millis(300));
+    let snap = src.poll();
+    let names: Vec<String> = snap.agents.iter().map(|a| a.name.clone()).collect();
+    let Some(rules) = groups::infer(&names, &i18n.t("init-default-team")) else {
+        println!(
+            "{}",
+            i18n.t_args("init-none", &[("n", names.len().to_string().as_str())])
+        );
+        return Ok(());
+    };
+    println!("{}\n", serde_json::to_string_pretty(&rules)?);
+    let parsed = groups::Rules::from_value(&rules);
+    let mut counts: std::collections::BTreeMap<String, usize> = Default::default();
+    for n in &names {
+        let team = parsed.team_of(n).unwrap_or_default();
+        *counts.entry(team).or_default() += 1;
+    }
+    println!("{}", i18n.t("init-preview"));
+    for (team, n) in counts {
+        println!("  {team:<28} {n}");
+    }
+    let path = groups::path(claude_dir);
+    if write {
+        if path.exists() {
+            std::fs::copy(&path, path.with_extension("json.bak"))?;
+        }
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(&path, serde_json::to_string_pretty(&rules)?)?;
+        println!(
+            "\n{}",
+            i18n.t_args(
+                "init-written",
+                &[("path", path.display().to_string().as_str())]
+            )
+        );
+    } else {
+        println!(
+            "\n{}",
+            i18n.t_args(
+                "init-hint",
+                &[("path", path.display().to_string().as_str())]
+            )
+        );
+    }
+    Ok(())
 }
 
 fn print_snapshot(mut source: Box<dyn Source>, wait: u64) -> Result<()> {

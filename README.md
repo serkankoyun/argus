@@ -135,7 +135,8 @@ Claude Code then asks Argus first: press `a` or `r`. If nobody answers within
 `--wait` seconds (default 120) the normal permission prompt appears. The event hooks tell
 Argus exactly when a tool starts and ends and when a session waits for you; other tools can
 report the same way ([docs/EVENTS.md](docs/EVENTS.md)). Teams encoded in agent names can be
-described in `~/.claude/argus/teams.json` ([docs/INSTALL.md](docs/INSTALL.md)).
+described in `~/.claude/argus/teams.json`; `argus init` suggests the rules from the names
+([docs/INSTALL.md](docs/INSTALL.md)).
 
 ## Roadmap
 

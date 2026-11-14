@@ -77,7 +77,9 @@ Agent messages and "now" descriptions are shown in the user's language.
   description; without a team filter the Overview flow tags each line with its team.
   Team sources, in order: Agent Teams, `team`/`agentName` in events, name rules in
   `<claude dir>/argus/teams.json` (strip role prefix, longest team code, aliases, labels),
-  project folder. Without an Agent Teams task list, each subagent's assignment is a task
+  project folder. Without an Agent Teams task list, each subagent's assignment is a task.
+  `argus init` infers those rules (roles = shared first segments, team = longest prefix
+  shared by two different jobs) so users do not have to write them
 - Recommendation: let Argus launch agents whenever possible
 - Limitation: interactive menu commands (`/config` etc.) are not supported
 

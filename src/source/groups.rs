@@ -164,10 +164,97 @@ impl Rules {
     }
 }
 
+/// `argus init`: guesses team rules from agent names shaped like
+/// `<role>-<team>-<work>`. A role is a first segment shared by several agents;
+/// a team is the longest prefix of the rest (up to 3 segments, always leaving a
+/// work part) shared by at least two different jobs. (Several roles on the same
+/// job prove nothing: developer, tester and QA all share the job name.) Returns `None` when no such pattern shows up.
+pub fn infer(names: &[String], default: &str) -> Option<Value> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let split: Vec<Vec<&str>> = names
+        .iter()
+        .map(|n| n.split('-').collect::<Vec<_>>())
+        .filter(|p| p.len() >= 3 && p.iter().all(|s| !s.is_empty()))
+        .collect();
+    let mut first: BTreeMap<&str, usize> = BTreeMap::new();
+    for p in &split {
+        *first.entry(p[0]).or_default() += 1;
+    }
+    let roles: BTreeSet<&str> = first
+        .iter()
+        .filter(|(_, n)| **n >= 2)
+        .map(|(r, _)| *r)
+        .collect();
+    // prefix -> (roles, jobs) seen with it
+    let mut seen: BTreeMap<String, (BTreeSet<&str>, BTreeSet<String>)> = BTreeMap::new();
+    for p in split.iter().filter(|p| roles.contains(p[0])) {
+        let rest = &p[1..];
+        for k in 1..=rest.len().saturating_sub(1).min(3) {
+            let e = seen.entry(rest[..k].join("-")).or_default();
+            e.0.insert(p[0]);
+            e.1.insert(rest[k..].join("-"));
+        }
+    }
+    let shared = |code: &str| seen.get(code).is_some_and(|(_, jobs)| jobs.len() >= 2);
+    let mut teams: BTreeSet<String> = BTreeSet::new();
+    for p in split.iter().filter(|p| roles.contains(p[0])) {
+        let rest = &p[1..];
+        let best = (1..=rest.len().saturating_sub(1).min(3))
+            .rev()
+            .map(|k| rest[..k].join("-"))
+            .find(|c| shared(c));
+        if let Some(c) = best {
+            teams.insert(c);
+        }
+    }
+    if teams.is_empty() {
+        return None;
+    }
+    Some(serde_json::json!({
+        "strip": roles.iter().map(|r| format!("{r}-")).collect::<Vec<_>>(),
+        "teams": teams.into_iter().collect::<Vec<_>>(),
+        "default": default,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn infers_roles_and_team_codes() {
+        let names: Vec<String> = [
+            "gelistirici-karar-kural-liste-alimi",
+            "qa-karar-kural-liste-alimi",
+            "testci-karar-kural-kanal-esitligi",
+            "gelistirici-provizyon-dis-kurum",
+            "qa-provizyon-dis-kurum",
+            "analist-kurum-agi-provider",
+            "mimar-kurum-agi-network-adr",
+            "analist-tibbi-listeler-demo",
+            "mimar-tibbi-listeler-yukleme",
+            "Claimer#1b4b",
+        ]
+        .map(String::from)
+        .to_vec();
+        let v = infer(&names, "no-team").unwrap();
+        let teams = strings(v.get("teams"));
+        assert!(teams.contains(&"karar-kural".to_string()), "{teams:?}");
+        // One job only: not enough evidence for a team.
+        assert!(
+            !teams.iter().any(|t| t.starts_with("provizyon")),
+            "{teams:?}"
+        );
+        assert!(teams.contains(&"kurum-agi".to_string()), "{teams:?}");
+        assert!(strings(v.get("strip")).contains(&"qa-".to_string()));
+        let r = Rules::from_value(&v);
+        assert_eq!(
+            r.team_of("qa-karar-kural-yeni-is").as_deref(),
+            Some("karar-kural")
+        );
+        assert!(infer(&["Claimer#1b4b".to_string()], "x").is_none());
+    }
 
     #[test]
     fn longest_code_after_role_prefix() {
