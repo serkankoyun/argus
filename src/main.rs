@@ -157,6 +157,19 @@ fn main() -> Result<()> {
 fn init(claude_dir: &std::path::Path, write: bool, lang: Option<&str>) -> Result<()> {
     use source::groups;
     let i18n = I18n::new(lang);
+    // A teams_file that does not exist silently drops codes and labels.
+    let current = std::fs::read_to_string(groups::path(claude_dir))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+    if let Some(file) = current
+        .as_ref()
+        .and_then(|v| v.get("teams_file"))
+        .and_then(|f| f.as_str())
+    {
+        if !std::path::Path::new(file).exists() {
+            println!("{}\n", i18n.t_args("init-missing-file", &[("path", file)]));
+        }
+    }
     let mut src = ClaudeSource::new(claude_dir.to_path_buf());
     let _ = src.poll();
     std::thread::sleep(Duration::from_millis(300));

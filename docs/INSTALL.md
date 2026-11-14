@@ -251,6 +251,9 @@ the team in agent names (for example `qa-payments-review`), describe it in
   "aliases": { "pay": "payments" },
   "labels": { "payments": "Payments and Billing" },
   "label_key": "displayName",
+  "short_names": true,
+  "roles": { "developer": "Developer", "qa": "QA" },
+  "coordinator": "Coordinator",
   "default": "no-team"
 }
 ```
@@ -259,7 +262,11 @@ The first matching `strip` prefix is removed from the name, then the longest mat
 code wins. `teams_file` (optional) adds codes from a JSON file: a list of strings, or objects
 with `code`, at the top level or under `teams`. A code matches whole name segments only. `aliases` maps retired codes to current
 ones, so agents from before a team rename stay with that team. Team display names come from
-`labels`, or from the field named by `label_key` in `teams_file` objects. Agents matching no code get
+`labels`, or from the field named by `label_key` in `teams_file` objects. With `short_names`,
+grouped agents are shown as `<role> · <work>` (`roles` gives readable role names), and
+`coordinator` names the sessions that start subagents and puts them in a group of their own.
+If `teams_file` points to a file that does not exist, its codes and names are skipped;
+`argus init` warns about it. Agents matching no code get
 `default`.
 Changes are picked up within a second; no restart needed.
 
@@ -376,6 +383,11 @@ counted as finished, and a session was named after its *current* folder. Now a s
 with a tool call in flight stays live, and sessions keep the name of the folder they
 started in. Since v0.1.12 a subagent that is resumed after it stopped (a coordinator
 messaging it for another round) shows as working again instead of staying finished.
+
+**A subagent waiting on its own background command shows as finished, or one that handed
+back its report shows as working** — Fixed in v0.1.17: a command started with
+`run_in_background` keeps the agent working (`[bg 3m10s] cmd`), and a `SubagentHandback`
+call finishes it.
 
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams

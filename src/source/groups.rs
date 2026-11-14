@@ -10,6 +10,9 @@
 //!   "aliases": { "old-code": "new-code" },
 //!   "labels": { "payments": "Payments and Billing" },
 //!   "label_key": "displayName",
+//!   "short_names": true,
+//!   "roles": { "developer": "Developer" },
+//!   "coordinator": "Coordinator",
 //!   "default": "no-team"
 //! }
 //! ```
@@ -21,7 +24,9 @@
 //! ones, so agents from before a rename join the renamed team. Agents that
 //! already have a team keep it. Team display names come from `labels`, or from
 //! the `teams_file` objects' `label_key` field (default: `label`, `title`,
-//! `displayName`).
+//! `displayName`). With `short_names`, a grouped agent is named
+//! `<role> · <work>` (role labels from `roles`); `coordinator` names root
+//! sessions that started subagents and gives them a group of their own.
 
 use std::path::{Path, PathBuf};
 
@@ -40,6 +45,9 @@ pub struct Rules {
     aliases: Vec<(String, String)>,
     labels: Vec<(String, String)>,
     default: Option<String>,
+    short_names: bool,
+    roles: Vec<(String, String)>,
+    coordinator: Option<String>,
 }
 
 fn strings(v: Option<&Value>) -> Vec<String> {
@@ -119,7 +127,26 @@ impl Rules {
                     .collect()
             })
             .unwrap_or_default();
+        let roles = v
+            .get("roles")
+            .and_then(Value::as_object)
+            .map(|m| {
+                m.iter()
+                    .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
         Rules {
+            short_names: v
+                .get("short_names")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            roles,
+            coordinator: v
+                .get("coordinator")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string),
             labels,
             aliases,
             strip: strings(v.get("strip")),
@@ -130,6 +157,31 @@ impl Rules {
                 .filter(|s| !s.is_empty())
                 .map(str::to_string),
         }
+    }
+
+    /// `<role> · <work>` for a name like `<role>-<team>-<work>`.
+    pub fn short_name(&self, name: &str, team: &str) -> Option<String> {
+        let prefix = self.strip.iter().find(|p| name.starts_with(p.as_str()))?;
+        let role = prefix.trim_end_matches('-');
+        let rest = &name[prefix.len()..];
+        let codes = std::iter::once(team).chain(
+            self.aliases
+                .iter()
+                .filter(|(_, v)| v == team)
+                .map(|(k, _)| k.as_str()),
+        );
+        let work = codes
+            .filter_map(|c| rest.strip_prefix(c))
+            .map(|w| w.trim_start_matches('-'))
+            .find(|w| !w.is_empty())
+            .unwrap_or(rest);
+        let label = self
+            .roles
+            .iter()
+            .find(|(k, _)| k == role)
+            .map(|(_, v)| v.as_str())
+            .unwrap_or(role);
+        Some(format!("{label} · {work}"))
     }
 
     pub fn team_of(&self, name: &str) -> Option<String> {
@@ -156,9 +208,29 @@ impl Rules {
 
     pub fn apply(&self, snap: &mut Snapshot) {
         snap.team_labels = self.labels.clone();
+        let parents: std::collections::HashSet<String> = snap
+            .agents
+            .iter()
+            .filter_map(|a| a.parent.clone())
+            .collect();
         for a in snap.agents.iter_mut() {
+            if let (Some(label), None) = (&self.coordinator, &a.parent) {
+                if parents.contains(&a.id) && a.team.is_none() {
+                    let project = a.name.split('#').next().unwrap_or("").to_string();
+                    a.name = format!("{label} · {project}");
+                    a.team = Some(label.clone());
+                    continue;
+                }
+            }
             if a.team.is_none() {
                 a.team = self.team_of(&a.name);
+            }
+            if self.short_names {
+                if let Some(team) = a.team.clone() {
+                    if let Some(short) = self.short_name(&a.name, &team) {
+                        a.name = short;
+                    }
+                }
             }
         }
     }
@@ -210,10 +282,23 @@ pub fn infer(names: &[String], default: &str) -> Option<Value> {
     if teams.is_empty() {
         return None;
     }
+    let labels: serde_json::Map<String, Value> = roles
+        .iter()
+        .map(|r| {
+            let mut c = r.chars();
+            let title = c
+                .next()
+                .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
+                .unwrap_or_default();
+            (r.to_string(), Value::String(title))
+        })
+        .collect();
     Some(serde_json::json!({
         "strip": roles.iter().map(|r| format!("{r}-")).collect::<Vec<_>>(),
         "teams": teams.into_iter().collect::<Vec<_>>(),
         "default": default,
+        "short_names": true,
+        "roles": labels,
     }))
 }
 
@@ -280,6 +365,17 @@ mod tests {
             Some("kurum-agi")
         );
         assert_eq!(r.team_of("qa-agent-x"), None);
+        let r = Rules::from_value(&json!({
+            "strip": ["gelistirici-"],
+            "teams": ["karar-kural"],
+            "roles": {"gelistirici": "Geliştirici"},
+            "short_names": true
+        }));
+        assert_eq!(
+            r.short_name("gelistirici-karar-kural-liste-alimi", "karar-kural")
+                .as_deref(),
+            Some("Geliştirici · liste-alimi")
+        );
         let r = Rules::from_value(&json!({"teams": ["a"], "labels": {"a": "Team A"}}));
         let mut snap = Snapshot::default();
         r.apply(&mut snap);

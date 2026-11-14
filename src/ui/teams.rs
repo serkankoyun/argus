@@ -172,7 +172,12 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
     // Names usually repeat the team ("qa-karar-kural-liste-alimi" in karar-kural):
     // drop it inside the card and give the name more room.
     let name_w = (area.width as usize / 2).clamp(12, 34);
-    for a in members.iter().take(room) {
+    // Finished members only count; they are listed when `f` shows finished agents.
+    let listed: Vec<_> = members
+        .iter()
+        .filter(|a| app.show_finished || a.state != AgentState::Done)
+        .collect();
+    for a in listed.iter().take(room) {
         let short_name = compact_name(&a.name, team);
         let c = pulse_color(app, a.state);
         let spin = if a.state == AgentState::Working {
@@ -195,9 +200,9 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
             ),
         ]));
     }
-    if members.len() > room {
+    if listed.len() > room {
         lines.push(Line::styled(
-            format!("  +{}", members.len() - room),
+            format!("  +{}", listed.len() - room),
             Style::new().fg(DIM),
         ));
     }

@@ -332,6 +332,11 @@ pub struct Session {
     last_kind: LastKind,
     pending: HashMap<String, Pending>,
     last_tool: (String, String),
+    /// A command it put in the background, and since when: the agent waits on
+    /// it even though its turn has ended.
+    background: Option<(Millis, String)>,
+    /// It handed its final report back (`SubagentHandback` and similar).
+    handed_back: Option<Millis>,
     tool_calls: u32,
     errors: u32,
     tools: Vec<ToolCall>,
@@ -372,6 +377,8 @@ impl Session {
             last_kind: LastKind::None,
             pending: HashMap::new(),
             last_tool: (String::new(), String::new()),
+            background: None,
+            handed_back: None,
             tool_calls: 0,
             errors: 0,
             tools: Vec::new(),
@@ -493,6 +500,14 @@ impl Session {
         let target = tool_target(&name, &input);
         self.tool_calls += 1;
         self.last_tool = (name.clone(), target.clone());
+        if name.contains("Handback") {
+            self.handed_back = Some(ts);
+        } else if input.get("run_in_background") == Some(&Value::Bool(true)) {
+            self.background = Some((ts, target.clone()));
+        } else {
+            // Any other tool call means it is active again (or polling the job).
+            self.background = None;
+        }
         self.note(ts, "tool", &format!("{name} {target}"));
         track_files(&mut self.files, &name, &input);
         self.tools.push(ToolCall {
@@ -737,6 +752,13 @@ pub fn build_snapshot<'a>(
         let alive = is_alive(&s.cwd, live_cwds);
         let state = infer_state(s, alive, now, &sessions, never_asks(s, &sessions));
         let (tool, target) = match s.pending.values().max_by_key(|p| p.ts) {
+            None if s.background.is_some() && state == AgentState::Working => {
+                let (at, cmd) = s.background.clone().unwrap_or_default();
+                (
+                    "Bash".to_string(),
+                    format!("[bg {}] {cmd}", elapsed(now - at)),
+                )
+            }
             // Long commands write nothing until they finish: show how long it runs.
             Some(p) if now - p.ts >= 60_000 => (
                 p.name.clone(),
@@ -1046,6 +1068,17 @@ fn infer_state(
     never_asks: bool,
 ) -> AgentState {
     let age = now - s.last;
+    // A handed-back report ends a subagent's work (unless it acts again later).
+    if s.handed_back.is_some_and(|at| at + 1000 >= s.last) {
+        return AgentState::Done;
+    }
+    // A command left running in the background: the agent is waiting on it.
+    if s.background
+        .as_ref()
+        .is_some_and(|(at, _)| now - at < 6 * 3600 * 1000)
+    {
+        return AgentState::Working;
+    }
     // A subagent is done once its parent received the result, unless it was
     // resumed afterwards (a later message continues the same subagent).
     if let Some(parent) = &s.parent {
@@ -1434,6 +1467,29 @@ mod tests {
             .messages
             .iter()
             .any(|m| m.kind == MsgKind::Perm && m.to == YOU));
+    }
+
+    #[test]
+    fn background_commands_and_handbacks() {
+        let mut c = Session::new("s/a1".into(), Some("s".into()), "-p".into());
+        c.ingest(
+            &json!({"type":"user","timestamp":ts(1),"message":{"role":"user","content":"go"}}),
+        );
+        c.ingest(&json!({"type":"assistant","timestamp":ts(2),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"b1","name":"Bash","input":{"command":"sleep 600","run_in_background":true}}]}}));
+        c.ingest(
+            &json!({"type":"user","timestamp":ts(3),"message":{"role":"user","content":[
+            {"type":"tool_result","tool_use_id":"b1","content":"Command running in background"}]}}),
+        );
+        c.ingest(&json!({"type":"assistant","timestamp":ts(4),"message":{"role":"assistant","content":[{"type":"text","text":"waiting"}]}}));
+        let snap = build_snapshot([&c].into_iter(), "box", &[], T0 + 30 * 60_000);
+        assert_eq!(snap.agents[0].state, AgentState::Working);
+        c.ingest(
+            &json!({"type":"assistant","timestamp":ts(5),"message":{"role":"assistant","content":[
+            {"type":"tool_use","id":"h1","name":"SubagentHandback","input":{"report":"done"}}]}}),
+        );
+        let snap = build_snapshot([&c].into_iter(), "box", &[], T0 + 30 * 60_000);
+        assert_eq!(snap.agents[0].state, AgentState::Done);
     }
 
     #[test]

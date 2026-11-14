@@ -258,3 +258,4 @@ init-none = No team pattern found in { $n } agent names. Names shaped like role-
 init-preview = Agents per team with these rules:
 init-hint = Nothing saved. Run `argus init --write` to save these rules to { $path }, then edit the file if needed.
 init-written = Saved to { $path }. Argus picks it up within a second; edit the file to rename teams or add labels.
+init-missing-file = Warning: teams_file { $path } in your current teams.json does not exist, so its team codes and names are not used. Point it at an existing file.

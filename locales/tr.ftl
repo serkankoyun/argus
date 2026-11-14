@@ -256,3 +256,4 @@ init-none = { $n } ajan adında ekip kalıbı bulunamadı. rol-ekip-iş biçimin
 init-preview = Bu kurallarla ekip başına ajan sayısı:
 init-hint = Hiçbir şey kaydedilmedi. Kuralları { $path } dosyasına kaydetmek için `argus init --write` çalıştırın, sonra gerekirse dosyayı düzenleyin.
 init-written = { $path } dosyasına kaydedildi. Argus bir saniye içinde okur; ekipleri yeniden adlandırmak veya ad eklemek için dosyayı düzenleyin.
+init-missing-file = Uyarı: mevcut teams.json içindeki teams_file { $path } yok; bu yüzden oradaki ekip kodları ve adları kullanılmıyor. Var olan bir dosyayı gösterin.

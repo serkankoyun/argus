@@ -185,12 +185,27 @@ pub fn name(app: &App, id: &str) -> String {
 }
 
 /// What the agent is doing right now, localized.
+/// A task without a leading run id such as `R-20261114-1538-setup-wizard`
+/// (orchestrators prefix assignments with them; the detail view keeps it).
+pub fn task_text(task: &str) -> &str {
+    let t = task.trim_start();
+    let token_end = t.find([' ', ':']).unwrap_or(t.len());
+    let token = &t[..token_end];
+    let digits = token.chars().filter(|c| c.is_ascii_digit()).count();
+    let looks_like_id = token.len() >= 12 && digits >= 8 && token.contains('-');
+    if looks_like_id && token_end < t.len() {
+        t[token_end..].trim_start_matches([' ', ':', '-'])
+    } else {
+        t
+    }
+}
+
 pub fn now_text(app: &App, a: &Agent) -> String {
     let i = &app.i18n;
     let target = a.now.as_str();
     match a.state {
         AgentState::Working if target.is_empty() && !a.task.is_empty() => {
-            format!("{} · {}", a.tool, a.task)
+            format!("{} · {}", a.tool, task_text(&a.task))
                 .trim_start_matches(" · ")
                 .to_string()
         }
@@ -203,7 +218,9 @@ pub fn now_text(app: &App, a: &Agent) -> String {
             &[("what", format!("{} {}", a.tool, target).trim())],
         ),
         AgentState::Idle => i.t("now-idle"),
-        AgentState::Done if !a.task.is_empty() => format!("{} · {}", i.t("now-done"), a.task),
+        AgentState::Done if !a.task.is_empty() => {
+            format!("{} · {}", i.t("now-done"), task_text(&a.task))
+        }
         AgentState::Done => i.t("now-done"),
         AgentState::Stalled => i.t_args("now-stalled", &[("what", a.tool.as_str())]),
     }
@@ -261,5 +278,19 @@ mod tests {
             s.push(v);
         }
         assert_eq!(sparkline(&s, 6), "  ▁▃▆█");
+    }
+}
+
+#[cfg(test)]
+mod task_tests {
+    #[test]
+    fn run_ids_are_dropped_from_tasks() {
+        use super::task_text;
+        assert_eq!(
+            task_text("R-20261114-1538-kurulum-sihirbazi liste adimi"),
+            "liste adimi"
+        );
+        assert_eq!(task_text("Fix the login form"), "Fix the login form");
+        assert_eq!(task_text("R-20261114-1538-only"), "R-20261114-1538-only");
     }
 }
