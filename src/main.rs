@@ -1,10 +1,16 @@
 //! Argus — watch and steer your Claude Code agents live, from the terminal.
 
+// Parts of the data model are consumed by views that land in later milestones.
+// TODO(v1.0): remove once every view is implemented.
+#![allow(dead_code)]
+
 mod app;
 mod i18n;
 mod model;
+mod source;
 mod ui;
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -13,6 +19,7 @@ use ratatui::crossterm::event::{self, Event, KeyEventKind};
 
 use crate::app::App;
 use crate::i18n::I18n;
+use crate::source::{claude::ClaudeSource, demo::DemoSource, Source};
 
 /// Command-line options.
 #[derive(Parser, Debug)]
@@ -25,14 +32,27 @@ struct Cli {
     /// Run with built-in demo data instead of real Claude Code sessions.
     #[arg(long)]
     demo: bool,
+
+    /// Claude configuration directory (default: $CLAUDE_CONFIG_DIR or ~/.claude).
+    #[arg(long, value_name = "DIR")]
+    claude_dir: Option<PathBuf>,
 }
 
-const TICK: Duration = Duration::from_millis(100);
+const FRAME: Duration = Duration::from_millis(50);
+const POLL: Duration = Duration::from_millis(1000);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let i18n = I18n::new(cli.lang.as_deref());
-    let mut app = App::new(i18n, cli.demo);
+    let source: Box<dyn Source> = if cli.demo {
+        Box::new(DemoSource::new(&i18n.lang))
+    } else {
+        Box::new(ClaudeSource::new(
+            cli.claude_dir.unwrap_or_else(source::claude::default_dir),
+        ))
+    };
+    let rx = source::spawn(source, POLL);
+    let mut app = App::new(i18n, rx, cli.demo);
 
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut app);
@@ -41,11 +61,10 @@ fn main() -> Result<()> {
 }
 
 fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
-    let mut last_tick = Instant::now();
+    let mut last = Instant::now();
     while !app.should_quit {
         terminal.draw(|frame| ui::draw(frame, app))?;
-
-        let timeout = TICK.saturating_sub(last_tick.elapsed());
+        let timeout = FRAME.saturating_sub(last.elapsed());
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
@@ -53,9 +72,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 }
             }
         }
-        if last_tick.elapsed() >= TICK {
+        if last.elapsed() >= FRAME {
             app.on_tick();
-            last_tick = Instant::now();
+            last = Instant::now();
         }
     }
     Ok(())

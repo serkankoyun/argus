@@ -1,9 +1,11 @@
 //! Application state and input handling.
 
+use std::sync::mpsc::Receiver;
+
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::i18n::I18n;
-use crate::model::Snapshot;
+use crate::model::{now_millis, Agent, Millis, Snapshot};
 
 /// Every screen Argus can show. The order matches the number keys `1`–`0`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,32 +72,84 @@ pub struct App {
     pub i18n: I18n,
     pub view: View,
     pub snapshot: Snapshot,
-    /// Index of the selected agent; shared across views.
-    pub selected: usize,
+    rx: Receiver<Snapshot>,
+    pub demo: bool,
+    /// Id of the selected agent; shared across views.
+    pub selected: Option<String>,
     pub paused: bool,
-    pub tick: u64,
+    /// Wall-clock time used for animations (frozen while paused).
+    pub now: Millis,
+    /// Frame counter for spinners and blinking.
+    pub frame: u64,
     pub should_quit: bool,
 }
 
 impl App {
-    pub fn new(i18n: I18n, demo: bool) -> Self {
-        // Until the collector lands, the demo snapshot is the only data source.
-        let _ = demo;
+    pub fn new(i18n: I18n, rx: Receiver<Snapshot>, demo: bool) -> Self {
         Self {
             i18n,
             view: View::Overview,
-            snapshot: Snapshot::demo(),
-            selected: 0,
+            snapshot: Snapshot::default(),
+            rx,
+            demo,
+            selected: None,
             paused: false,
-            tick: 0,
+            now: now_millis(),
+            frame: 0,
             should_quit: false,
         }
     }
 
     pub fn on_tick(&mut self) {
-        if !self.paused {
-            self.tick = self.tick.wrapping_add(1);
+        if self.paused {
+            return;
         }
+        self.frame = self.frame.wrapping_add(1);
+        self.now = now_millis();
+        let mut latest = None;
+        while let Ok(s) = self.rx.try_recv() {
+            latest = Some(s);
+        }
+        if let Some(s) = latest {
+            self.snapshot = s;
+            let valid = self
+                .selected
+                .as_ref()
+                .is_some_and(|id| self.snapshot.agent(id).is_some());
+            if !valid {
+                self.selected = self.ordered().first().map(|a| a.id.clone());
+            }
+        }
+    }
+
+    /// Agents in tree order (roots followed by their children).
+    pub fn ordered(&self) -> Vec<&Agent> {
+        self.snapshot
+            .tree_order()
+            .into_iter()
+            .map(|(i, _)| &self.snapshot.agents[i])
+            .collect()
+    }
+
+    pub fn selected_agent(&self) -> Option<&Agent> {
+        self.selected
+            .as_deref()
+            .and_then(|id| self.snapshot.agent(id))
+    }
+
+    fn move_selection(&mut self, delta: isize) {
+        let ids: Vec<String> = self.ordered().iter().map(|a| a.id.clone()).collect();
+        if ids.is_empty() {
+            return;
+        }
+        let cur = self
+            .selected
+            .as_ref()
+            .and_then(|s| ids.iter().position(|i| i == s))
+            .unwrap_or(0) as isize;
+        let n = ids.len() as isize;
+        let next = ((cur + delta) % n + n) % n;
+        self.selected = Some(ids[next as usize].clone());
     }
 
     pub fn on_key(&mut self, key: KeyEvent) {
@@ -115,18 +169,14 @@ impl App {
             KeyCode::BackTab => {
                 self.view = View::ALL[(self.view.index() + View::ALL.len() - 1) % View::ALL.len()]
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                let n = self.snapshot.agents.len();
-                if n > 0 {
-                    self.selected = (self.selected + 1) % n;
+            KeyCode::Enter => {
+                if self.view != View::AgentDetail {
+                    self.view = View::AgentDetail;
                 }
             }
-            KeyCode::Up | KeyCode::Char('k') => {
-                let n = self.snapshot.agents.len();
-                if n > 0 {
-                    self.selected = (self.selected + n - 1) % n;
-                }
-            }
+            KeyCode::Esc => self.view = View::Overview,
+            KeyCode::Down | KeyCode::Char('j') => self.move_selection(1),
+            KeyCode::Up | KeyCode::Char('k') => self.move_selection(-1),
             _ => {}
         }
     }

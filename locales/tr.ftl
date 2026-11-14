@@ -46,3 +46,41 @@ key-next = sonraki ekran
 key-select = seç
 key-pause = duraklat
 key-quit = çık
+
+## v0.1 additions
+status-demo = demo
+header-waiting = { $n } bekliyor
+header-stalled = { $n } takıldı
+loading = Claude Code oturumları okunuyor…
+empty = { $dir } içinde yakın zamanda Claude Code oturumu yok. Bir tane başlat ya da `argus --demo` dene.
+pane-flow = Akış · görevler ve mesajlar
+pane-metrics = Metrikler
+pane-events = Olaylar
+flow-empty = Ajanlar arasında henüz mesaj yok.
+m-tokens = token/sn
+m-cost = maliyet/sa
+m-tools = araç/dk
+m-msgs = mesaj/dk
+m-errors = hata
+m-ctx = ort. ctx
+key-detail = detay
+
+## What an agent is doing now
+now-thinking = düşünüyor…
+now-waiting = onay bekliyor: { $what }
+now-idle = girdi bekliyor
+now-done = bitti
+now-stalled = ilerleme yok ({ $what })
+
+## Message kinds
+kind-task = görev
+kind-msg = mesaj
+kind-result = sonuç
+kind-perm = onay?
+kind-finding = bulgu
+
+## Task status
+task-pending = BEKLEMEDE
+task-in-progress = SÜRÜYOR
+task-blocked = ENGELLİ
+task-done = BİTTİ
