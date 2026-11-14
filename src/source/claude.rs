@@ -1012,13 +1012,18 @@ fn infer_state(
     never_asks: bool,
 ) -> AgentState {
     let age = now - s.last;
-    // A subagent is done once its parent received the result.
+    // A subagent is done once its parent received the result, unless it was
+    // resumed afterwards (a later message continues the same subagent).
     if let Some(parent) = &s.parent {
         if let Some(p) = all.iter().find(|p| &p.id == parent) {
-            if p.spawns
-                .iter()
-                .any(|sp| sp.result.is_some() && prompt_matches(&s.first_prompt, &sp.prompt))
-            {
+            let finished = p.spawns.iter().any(|sp| {
+                prompt_matches(&s.first_prompt, &sp.prompt)
+                    && sp
+                        .result
+                        .as_ref()
+                        .is_some_and(|(at, _)| *at + 1000 >= s.last)
+            });
+            if finished && s.pending.is_empty() {
                 return AgentState::Done;
             }
         }

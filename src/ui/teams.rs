@@ -64,7 +64,14 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
     let scope = app.host_scope();
     let s = &scope;
     let i = &app.i18n;
-    let members: Vec<_> = s.agents.iter().filter(|a| a.team_key() == team).collect();
+    let mut members: Vec<_> = s.agents.iter().filter(|a| a.team_key() == team).collect();
+    // Live members first, then the most recently finished.
+    members.sort_by_key(|a| {
+        (
+            a.state == AgentState::Done,
+            std::cmp::Reverse(a.last_activity),
+        )
+    });
     let count = |st: AgentState| members.iter().filter(|a| a.state == st).count();
     let ids: Vec<&str> = members.iter().map(|a| a.id.as_str()).collect();
     let window = 15 * 60_000;

@@ -120,7 +120,9 @@ pub struct Live {
     /// Finished its turn or waits for a prompt.
     pub idle: bool,
     pub ended: bool,
-    pub finished_subagents: HashSet<String>,
+    /// Subagent id -> time of its last `SubagentStop`. A subagent can be
+    /// resumed (a message continues it), so later activity revives it.
+    pub finished_subagents: HashMap<String, Millis>,
     pub mode: String,
 }
 
@@ -223,7 +225,7 @@ impl EventLog {
         }
         if e.event == "SubagentStop" {
             let parent = self.sessions.entry(e.sid.clone()).or_default();
-            parent.finished_subagents.insert(e.agent_id.clone());
+            parent.finished_subagents.insert(e.agent_id.clone(), e.ts);
         }
         let key = format!("{}/{}", e.sid, e.agent_id);
         self.sessions.entry(key).or_default().apply(e);
@@ -286,13 +288,17 @@ impl EventLog {
                 None => (a.id.as_str(), None),
             };
             if let Some(sub) = sub {
-                if self
+                let stopped = self
                     .sessions
                     .get(root)
-                    .is_some_and(|l| l.finished_subagents.contains(sub))
-                {
-                    a.state = AgentState::Done;
-                    continue;
+                    .and_then(|l| l.finished_subagents.get(sub))
+                    .copied();
+                let later = self.sessions.get(a.id.as_str()).map_or(0, |l| l.last);
+                if let Some(at) = stopped {
+                    if at + 1000 >= a.last_activity && at >= later {
+                        a.state = AgentState::Done;
+                        continue;
+                    }
                 }
             }
             // A session (or the parent of a subagent) that never asks for

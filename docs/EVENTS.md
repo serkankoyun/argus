@@ -49,7 +49,7 @@ work too.
 | `PermissionRequest`, `Notification` with `permission…` | waiting for approval |
 | `Notification` with `idle…`, `Stop` | idle, waiting for a prompt |
 | `SessionEnd` | finished (moves to History) |
-| `SubagentStop` with `agentId` | that subagent finished |
+| `SubagentStop` with `agentId` | that subagent finished (until it is resumed: later activity revives it) |
 
 Events that carry `agentId` describe that subagent (`PreToolUse` with `agentId` means the
 subagent is running a tool), so subagents get exact states too.

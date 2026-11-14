@@ -363,7 +363,8 @@ letter plus Shift, so `T` cycled the team filter instead of opening Teams. Fixed
 run folder** — Before v0.1.11 a subagent that wrote nothing for 5 minutes (a long test run)
 counted as finished, and a session was named after its *current* folder. Now a subagent
 with a tool call in flight stays live, and sessions keep the name of the folder they
-started in.
+started in. Since v0.1.12 a subagent that is resumed after it stopped (a coordinator
+messaging it for another round) shows as working again instead of staying finished.
 
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
