@@ -242,7 +242,7 @@ impl EventLog {
                     a.last_activity = a.last_activity.max(live.last);
                     approved.insert(a.id.clone());
                 }
-            } else if live.idle && a.state != AgentState::Done {
+            } else if live.idle && (a.state != AgentState::Done || now - live.last < 30 * 60_000) {
                 a.state = AgentState::Idle;
                 approved.insert(a.id.clone());
             }

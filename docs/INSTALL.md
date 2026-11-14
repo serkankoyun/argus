@@ -326,6 +326,17 @@ one, or call this Argus by its full path.
 `ls ~/.claude/projects/`. If Claude Code uses another config folder, start Argus with
 `--claude-dir` or set `CLAUDE_CONFIG_DIR`. Only sessions modified in the last 24 hours are shown.
 
+**Only one or two agents appear although many are running; "0 active" in the header** —
+v0.1.4 hides finished agents, and v0.1.4–v0.1.5 judged a session finished when no `claude`
+process ran in *exactly* its folder. Sessions that `cd` into a subproject (or teammates
+running inside their lead's process) were hidden after 5 quiet minutes. Update to v0.1.6;
+meanwhile press `f` to show them, or `H` to see what Argus considered finished.
+
+**Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
+Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
+marks it read, or when the sender sends a newer one; unanswered messages leave the list
+after 15 minutes.
+
 **A remote host is connected and its agents are working, but little or nothing updates** —
 Before v0.1.4 Argus kept using whatever collector it had installed on the server the first
 time (`~/.cache/argus/argus`), even after you updated Argus on your own machine, so an old

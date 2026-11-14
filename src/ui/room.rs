@@ -176,6 +176,10 @@ fn draw_bubble(buf: &mut Buffer, area: Rect, n: &Node, m: &Message, app: &App) {
     }
 }
 
+/// A plain message nobody answered is no longer "open" after this long: it was
+/// most likely acted on without a written reply.
+const MSG_OPEN_MS: i64 = 15 * 60_000;
+
 /// Requests that are still open, or were answered recently.
 pub fn open_requests(app: &App) -> Vec<&Message> {
     app.snapshot
@@ -183,7 +187,10 @@ pub fn open_requests(app: &App) -> Vec<&Message> {
         .iter()
         .rev()
         .filter(|m| m.kind != MsgKind::Result)
-        .filter(|m| m.answered_at.is_none() || app.now - m.answered_at.unwrap_or(0) < 60_000)
+        .filter(|m| match m.answered_at {
+            Some(at) => app.now - at < 60_000,
+            None => m.kind != MsgKind::Msg || app.now - m.ts < MSG_OPEN_MS,
+        })
         .collect()
 }
 

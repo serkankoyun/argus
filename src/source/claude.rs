@@ -118,6 +118,7 @@ impl Source for ClaudeSource {
             now,
         );
         merge_teams(&self.root, &mut snap);
+        settle_messages(&mut snap);
         assign_teams(&self.root, &mut snap);
         apply_requests(&mut snap, &hook::pending(&self.root));
         self.events.poll();
@@ -701,7 +702,7 @@ pub fn build_snapshot<'a>(
     let mut snap = Snapshot::default();
 
     for s in &sessions {
-        let alive = live_cwds.iter().any(|c| Path::new(&s.cwd) == c.as_path());
+        let alive = is_alive(&s.cwd, live_cwds);
         let state = infer_state(s, alive, now, &sessions);
         let (tool, target) = match s.pending.values().max_by_key(|p| p.ts) {
             // Long commands write nothing until they finish: show how long it runs.
@@ -795,7 +796,7 @@ pub fn build_snapshot<'a>(
                 request: None,
             });
         }
-        let alive = live_cwds.iter().any(|c| Path::new(&s.cwd) == c.as_path());
+        let alive = is_alive(&s.cwd, live_cwds);
         if let Some(p) = s.pending.values().max_by_key(|p| p.ts) {
             if alive && now - p.ts > 20_000 && now - s.last > 20_000 && !is_long_running(&p.name) {
                 snap.messages.push(Message {
@@ -823,6 +824,38 @@ pub fn build_snapshot<'a>(
     snap.agents
         .sort_by_key(|a| std::cmp::Reverse(a.last_activity));
     snap
+}
+
+/// A session is alive when a running `claude` process works in its folder or
+/// in a parent of it (sessions often `cd` into a subproject). Very short paths
+/// such as `/` or the home folder only match exactly.
+fn is_alive(cwd: &str, live_cwds: &[PathBuf]) -> bool {
+    let cwd = Path::new(cwd);
+    live_cwds
+        .iter()
+        .any(|c| c == cwd || (c.components().count() > 3 && cwd.starts_with(c)))
+}
+
+/// Plain messages carry no answer marker: one counts as answered when the
+/// recipient writes back, or when the sender sends the same recipient a newer one.
+pub fn settle_messages(snap: &mut Snapshot) {
+    let n = snap.messages.len();
+    for i in 0..n {
+        let m = &snap.messages[i];
+        if m.kind != MsgKind::Msg || m.answered_at.is_some() {
+            continue;
+        }
+        let (from, to, ts) = (m.from.clone(), m.to.clone(), m.ts);
+        let answer = snap.messages[i + 1..]
+            .iter()
+            .find(|r| {
+                r.ts >= ts
+                    && ((r.from == to && r.to == from)
+                        || (r.kind == MsgKind::Msg && r.from == from && r.to == to))
+            })
+            .map(|r| r.ts);
+        snap.messages[i].answered_at = answer;
+    }
 }
 
 /// `6m12s`, `1h05m`.
@@ -1025,7 +1058,8 @@ fn merge_teams(root: &Path, snap: &mut Snapshot) {
                     kind: MsgKind::Msg,
                     label: short(if summary.is_empty() { &body } else { &summary }, 40),
                     text: short(&body, 600),
-                    answered_at: None,
+                    // Agent Teams marks delivered inbox messages as read.
+                    answered_at: (it.get("read") == Some(&Value::Bool(true))).then_some(ts),
                     request: None,
                 };
                 let dup = snap
@@ -1261,6 +1295,33 @@ mod tests {
             tool_target("Edit", &json!({"file_path":"src/a.rs"})),
             "src/a.rs"
         );
+    }
+
+    #[test]
+    fn liveness_and_message_settling() {
+        let live = vec![PathBuf::from("/home/me/work/Claimer")];
+        assert!(is_alive("/home/me/work/Claimer/platform", &live));
+        assert!(!is_alive("/home/me/work/Other", &live));
+        assert!(!is_alive("/home/me/x", &[PathBuf::from("/home/me")]));
+        let msg = |ts, from: &str, to: &str| Message {
+            ts,
+            from: from.into(),
+            to: to.into(),
+            kind: MsgKind::Msg,
+            ..Message::default()
+        };
+        let mut snap = Snapshot {
+            messages: vec![
+                msg(1, "lead", "qa"),
+                msg(2, "qa", "lead"),
+                msg(3, "lead", "dev"),
+                msg(4, "lead", "dev"),
+            ],
+            ..Snapshot::default()
+        };
+        settle_messages(&mut snap);
+        let answered: Vec<_> = snap.messages.iter().map(|m| m.answered_at).collect();
+        assert_eq!(answered, vec![Some(2), None, Some(4), None]);
     }
 
     #[test]

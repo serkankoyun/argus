@@ -62,6 +62,10 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
   `Bash` looked like a pending approval and an idle session looked busy. Exact states come
   from lifecycle events (`src/source/events.rs`, `docs/EVENTS.md`); keep that format open and
   generic rather than adding code for one orchestrator.
+- **Liveness is by folder prefix**: Claude Code keeps the launch folder as its process cwd
+  while sessions `cd` into subprojects, and teammates may run inside the lead's process. An
+  exact cwd match marked live sessions finished, and hiding finished agents then emptied
+  the views. Real data never looks like the demo: test with nested folders.
 - **GitHub releases API**: `/releases/latest` ignores pre-releases; use `/releases?per_page=1`.
 - **Release packaging**: build archives in `dist/` and upload `dist/*` only; staging folder names
   contain dots and globbing `argus-*.*` picked them up.
