@@ -1,0 +1,159 @@
+//! Node placement shared by the graph-style views (Graph, Room).
+
+use std::collections::BTreeMap;
+
+use ratatui::layout::Rect;
+
+use crate::model::{Snapshot, YOU};
+
+#[derive(Debug, Clone)]
+pub struct Node {
+    /// Agent id, or [`YOU`] for the human operator.
+    pub id: String,
+    /// Center, in absolute terminal cells.
+    pub x: u16,
+    pub y: u16,
+}
+
+#[derive(Debug, Clone)]
+pub struct Group {
+    pub host: String,
+    pub area: Rect,
+}
+
+/// Places agents in one column band per host; inside a band, depth in the
+/// agent tree decides the row and siblings spread horizontally.
+pub fn place(
+    s: &Snapshot,
+    area: Rect,
+    node_w: u16,
+    node_h: u16,
+    with_you: bool,
+) -> (Vec<Node>, Vec<Group>) {
+    let mut hosts: BTreeMap<String, Vec<(usize, usize)>> = BTreeMap::new();
+    for (idx, depth) in s.tree_order() {
+        hosts
+            .entry(s.agents[idx].host.clone())
+            .or_default()
+            .push((idx, depth));
+    }
+    let mut nodes = Vec::new();
+    let mut groups = Vec::new();
+    if hosts.is_empty() {
+        return (nodes, groups);
+    }
+    let reserve = if with_you { node_h + 2 } else { 0 };
+    let bands = hosts.len() as u16;
+    let band_w = area.width / bands.max(1);
+    for (bi, (host, members)) in hosts.into_iter().enumerate() {
+        let bx = area.x + band_w * bi as u16;
+        let band = Rect {
+            x: bx,
+            y: area.y,
+            width: band_w,
+            height: area.height.saturating_sub(reserve),
+        };
+        groups.push(Group { host, area: band });
+        let max_depth = members.iter().map(|m| m.1).max().unwrap_or(0);
+        let rows = (max_depth + 1) as u16;
+        let row_h = band.height.saturating_sub(2) / rows.max(1);
+        for depth in 0..=max_depth {
+            let row: Vec<usize> = members
+                .iter()
+                .filter(|m| m.1 == depth)
+                .map(|m| m.0)
+                .collect();
+            let n = row.len() as u16;
+            let y = band.y + 1 + row_h * depth as u16 + row_h / 2;
+            for (k, idx) in row.into_iter().enumerate() {
+                let slot = band.width / n.max(1);
+                let x = band.x + slot * k as u16 + slot / 2;
+                let x = x.clamp(
+                    band.x + node_w / 2 + 1,
+                    (band.x + band.width).saturating_sub(node_w / 2 + 1),
+                );
+                nodes.push(Node {
+                    id: s.agents[idx].id.clone(),
+                    x,
+                    y: y.max(band.y + node_h / 2 + 1),
+                });
+            }
+        }
+    }
+    if with_you {
+        nodes.push(Node {
+            id: YOU.into(),
+            x: area.x + area.width.saturating_sub(node_w / 2 + 2),
+            y: area.y + area.height.saturating_sub(node_h / 2 + 1),
+        });
+    }
+    (nodes, groups)
+}
+
+/// The rectangle of a node box centered on `n`, clipped to `bounds`.
+pub fn node_rect(n: &Node, w: u16, h: u16, bounds: Rect) -> Rect {
+    let x = n.x.saturating_sub(w / 2).max(bounds.x);
+    let y = n.y.saturating_sub(h / 2).max(bounds.y);
+    let w = w.min((bounds.x + bounds.width).saturating_sub(x));
+    let h = h.min((bounds.y + bounds.height).saturating_sub(y));
+    Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    }
+}
+
+/// Points on the straight line from `a` to `b` (Bresenham), in cells.
+pub fn line_cells(a: (u16, u16), b: (u16, u16)) -> Vec<(u16, u16)> {
+    let (mut x0, mut y0) = (a.0 as i32, a.1 as i32);
+    let (x1, y1) = (b.0 as i32, b.1 as i32);
+    let dx = (x1 - x0).abs();
+    let dy = -(y1 - y0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    let mut out = Vec::new();
+    loop {
+        out.push((x0 as u16, y0 as u16));
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
+    }
+    out
+}
+
+/// Position `t` (0–1) of the way from `a` to `b`.
+pub fn lerp(a: (u16, u16), b: (u16, u16), t: f64) -> (u16, u16) {
+    let t = t.clamp(0.0, 1.0);
+    let x = a.0 as f64 + (b.0 as f64 - a.0 as f64) * t;
+    let y = a.1 as f64 + (b.1 as f64 - a.1 as f64) * t;
+    (x.round() as u16, y.round() as u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_includes_endpoints() {
+        let l = line_cells((0, 0), (4, 2));
+        assert_eq!(l.first(), Some(&(0, 0)));
+        assert_eq!(l.last(), Some(&(4, 2)));
+        assert_eq!(l.len(), 5);
+    }
+
+    #[test]
+    fn lerp_midpoint() {
+        assert_eq!(lerp((0, 0), (10, 4), 0.5), (5, 2));
+    }
+}

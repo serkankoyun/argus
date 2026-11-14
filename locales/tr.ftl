@@ -84,3 +84,12 @@ task-pending = BEKLEMEDE
 task-in-progress = SÜRÜYOR
 task-blocked = ENGELLİ
 task-done = BİTTİ
+
+## Graph
+pane-graph = Canlı ağ
+graph-legend = ● görev  ◆ mesaj  ✓ sonuç  ▲ onay  ! bulgu · parlak çizgi = yoğun trafik
+pane-traffic = Trafik · 15 dk
+pane-now = Şimdi
+you = sen
+approvals-pending = { $n } onay bekliyor
+press-a = onay için a'ya bas

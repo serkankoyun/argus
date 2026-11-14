@@ -70,11 +70,7 @@ impl Usage {
     /// Share of prompt tokens served from cache, 0–100.
     pub fn cache_hit_pct(&self) -> u8 {
         let prompt = self.input + self.cache_read + self.cache_write;
-        if prompt == 0 {
-            0
-        } else {
-            ((self.cache_read * 100) / prompt) as u8
-        }
+        (self.cache_read * 100).checked_div(prompt).unwrap_or(0) as u8
     }
 }
 
@@ -122,11 +118,10 @@ pub struct Agent {
 
 impl Agent {
     pub fn context_pct(&self) -> u8 {
-        if self.context_window == 0 {
-            0
-        } else {
-            ((self.context_tokens * 100) / self.context_window).min(100) as u8
-        }
+        (self.context_tokens * 100)
+            .checked_div(self.context_window)
+            .unwrap_or(0)
+            .min(100) as u8
     }
 
     pub fn elapsed_secs(&self, now: Millis) -> u64 {

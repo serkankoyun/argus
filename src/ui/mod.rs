@@ -1,6 +1,8 @@
 //! Rendering. Every view shares the header, the view bar and the key hints.
 
 mod common;
+mod graph;
+mod layout;
 mod overview;
 
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -26,6 +28,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     draw_tabs(frame, tabs, app);
     match app.view {
         View::Overview => overview::draw(frame, body, app),
+        View::Graph => graph::draw(frame, body, app),
         other => draw_placeholder(frame, body, app, other),
     }
     draw_footer(frame, footer, app);

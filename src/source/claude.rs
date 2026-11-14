@@ -741,7 +741,7 @@ pub fn build_snapshot<'a>(
     }
     // Stable ordering: most recently active roots first.
     snap.agents
-        .sort_by(|a, b| b.last_activity.cmp(&a.last_activity));
+        .sort_by_key(|a| std::cmp::Reverse(a.last_activity));
     snap
 }
 

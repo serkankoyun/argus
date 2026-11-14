@@ -86,3 +86,12 @@ task-pending = PENDING
 task-in-progress = IN PROGRESS
 task-blocked = BLOCKED
 task-done = DONE
+
+## Graph
+pane-graph = Live graph
+graph-legend = ● task  ◆ msg  ✓ result  ▲ approval  ! finding · brighter edge = more traffic
+pane-traffic = Traffic · 15 min
+pane-now = Now
+you = you
+approvals-pending = { $n } approval(s) pending
+press-a = press a to approve
