@@ -1023,7 +1023,7 @@ fn infer_state(
                         .as_ref()
                         .is_some_and(|(at, _)| *at + 1000 >= s.last)
             });
-            if finished && s.pending.is_empty() {
+            if finished {
                 return AgentState::Done;
             }
         }
