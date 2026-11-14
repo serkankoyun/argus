@@ -64,7 +64,8 @@ brew tap serkankoyun/argus https://github.com/serkankoyun/argus
 brew install serkankoyun/argus/argus
 ```
 
-**Windows (Scoop)** — run it in Windows Terminal
+**Windows (Scoop)** — run it in Windows Terminal. (Not on winget yet: `winget install argus`
+finds unrelated programs with the same name.)
 
 ```powershell
 scoop bucket add argus https://github.com/serkankoyun/argus

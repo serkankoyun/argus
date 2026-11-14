@@ -67,7 +67,11 @@ argus --version
 
 Update with `scoop update argus`. Run Argus in **Windows Terminal**.
 
-`winget install argus` is planned; until then use Scoop or the manual steps below.
+> **Not on winget yet.** `winget install argus` currently finds *other* programs that are
+> also called Argus — do not install those. This Argus will be published on winget as
+> `SerkanKoyun.Argus` (`winget install --id SerkanKoyun.Argus`). Until then use Scoop or
+> the manual steps below. Check what you installed with `argus --version`: it prints
+> `argus 0.1.0` (or newer) and `argus --help` mentions Claude Code.
 
 ### Manual download
 
@@ -272,6 +276,10 @@ Notes:
   headless turn on it; prefer letting Argus start the agents you want to steer.
 
 ## 6. Troubleshooting
+
+**`argus` starts a different program** — another tool with the same name is installed
+(for example from winget or a system package). Check with `argus --help`; remove the other
+one, or call this Argus by its full path.
 
 **"No recent Claude Code sessions"** — Check that sessions exist:
 `ls ~/.claude/projects/`. If Claude Code uses another config folder, start Argus with

@@ -19,6 +19,8 @@ Tip: a package manager installs and updates Argus with one command instead —
 `brew tap serkankoyun/argus https://github.com/serkankoyun/argus`) or
 `scoop install argus/argus` (Windows, after
 `scoop bucket add argus https://github.com/serkankoyun/argus`). See `INSTALL.md`.
+Note: `winget install argus` finds unrelated programs with the same name; this Argus is
+not on winget yet.
 
 **macOS**
 
