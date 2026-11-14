@@ -31,7 +31,8 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
    sessions cannot create tags or releases).
 3. The **Release** workflow builds 5 targets, attaches archives + `SHA256SUMS`, then
    regenerates `bucket/argus.json` and `Formula/argus.rb` (`packaging/render.py`) on `main`.
-4. The **Packages** workflow installs via Homebrew and Scoop to verify the manifests.
+4. Run the **Packages** workflow (`gh workflow run packages.yml`) to install via Homebrew and
+   Scoop and verify the manifests (bot commits do not trigger workflows on their own).
 - Re-attach binaries to an existing release: run the Release workflow manually with `tag`.
 
 ## Layout
