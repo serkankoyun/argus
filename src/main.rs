@@ -14,12 +14,14 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 
 use crate::app::App;
 use crate::i18n::I18n;
-use crate::source::{claude::ClaudeSource, demo::DemoSource, Source};
+use crate::source::{
+    claude::ClaudeSource, demo::DemoSource, multi::MultiSource, remote::RemoteSource, Source,
+};
 
 /// Command-line options.
 #[derive(Parser, Debug)]
@@ -34,8 +36,25 @@ struct Cli {
     demo: bool,
 
     /// Claude configuration directory (default: $CLAUDE_CONFIG_DIR or ~/.claude).
-    #[arg(long, value_name = "DIR")]
+    #[arg(long, value_name = "DIR", global = true)]
     claude_dir: Option<PathBuf>,
+
+    /// Also watch a remote machine over SSH (repeatable), e.g. `--host user@prod-1`.
+    #[arg(long = "host", value_name = "SSH_TARGET")]
+    hosts: Vec<String>,
+
+    /// Do not watch the local machine (only the `--host` machines).
+    #[arg(long)]
+    no_local: bool,
+
+    #[command(subcommand)]
+    command: Option<Cmd>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Cmd {
+    /// Stream this machine's snapshots as JSON lines (used over SSH by `--host`).
+    Collect,
 }
 
 const FRAME: Duration = Duration::from_millis(50);

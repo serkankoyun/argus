@@ -180,7 +180,7 @@ info-hosts = hosts
 info-agents = agents
 info-messages = messages
 info-cost = cost (est.)
-info-connect = Remote hosts over SSH arrive in v0.3.
+info-connect = Add machines with: argus --host user@server
 cost-by-agent = { $host } · cost by agent
 
 ## Channel

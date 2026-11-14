@@ -3,7 +3,9 @@
 
 pub mod claude;
 pub mod demo;
+pub mod multi;
 pub mod pricing;
+pub mod remote;
 pub mod system;
 
 use std::sync::mpsc::{self, Receiver};

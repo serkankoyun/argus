@@ -178,7 +178,7 @@ info-hosts = sunucu
 info-agents = ajan
 info-messages = mesaj
 info-cost = maliyet (tahmini)
-info-connect = SSH ile uzak sunucular v0.3'te geliyor.
+info-connect = Makine eklemek için: argus --host kullanici@sunucu
 cost-by-agent = { $host } · ajan bazında maliyet
 
 ## Channel

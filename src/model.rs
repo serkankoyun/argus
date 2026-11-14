@@ -3,6 +3,8 @@
 
 use std::collections::VecDeque;
 
+use serde::{Deserialize, Serialize};
+
 /// Milliseconds since the Unix epoch.
 pub type Millis = i64;
 
@@ -13,7 +15,7 @@ pub fn now_millis() -> Millis {
         .unwrap_or(0)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AgentState {
     Working,
     Waiting,
@@ -46,7 +48,7 @@ impl AgentState {
 }
 
 /// Token usage, as reported by the API for each assistant turn.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Usage {
     pub input: u64,
     pub output: u64,
@@ -74,7 +76,7 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
     pub ts: Millis,
     pub agent: String,
@@ -85,7 +87,7 @@ pub struct ToolCall {
     pub ok: Option<bool>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Agent {
     /// Unique id: the session id, or `session/agent-id` for subagents.
     pub id: String,
@@ -133,7 +135,7 @@ impl Agent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MsgKind {
     /// A task handed to another agent.
     Task,
@@ -172,7 +174,7 @@ impl MsgKind {
 /// Id used for the human operator in messages.
 pub const YOU: &str = "@you";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub ts: Millis,
     pub from: String,
@@ -186,7 +188,7 @@ pub struct Message {
     pub answered_at: Option<Millis>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TaskStatus {
     Pending,
     InProgress,
@@ -205,7 +207,7 @@ impl TaskStatus {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
     pub title: String,
@@ -214,7 +216,7 @@ pub struct Task {
     pub blocked_by: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Host {
     pub name: String,
     pub region: String,
@@ -225,7 +227,7 @@ pub struct Host {
 }
 
 /// Fixed-size history of a metric, one sample per collector tick.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Series {
     pub samples: VecDeque<f64>,
 }
@@ -245,7 +247,7 @@ impl Series {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Metrics {
     pub tokens_per_sec: Series,
     pub cost_per_hour: Series,
@@ -255,7 +257,7 @@ pub struct Metrics {
     pub ctx_avg: Series,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Snapshot {
     pub taken_at: Millis,
     pub hosts: Vec<Host>,

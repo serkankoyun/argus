@@ -954,7 +954,7 @@ fn read_tasks(root: &Path) -> Vec<Task> {
     out
 }
 
-fn update_metrics(
+pub fn update_metrics(
     m: &mut Metrics,
     last: &mut Option<(Millis, u64, f64)>,
     s: &Snapshot,
