@@ -228,46 +228,6 @@ pub fn trunc(s: &str, n: usize) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bar_fills_proportionally() {
-        assert_eq!(bar(0, 4, '█', '░'), "░░░░");
-        assert_eq!(bar(50, 4, '█', '░'), "██░░");
-        assert_eq!(bar(100, 4, '█', '░'), "████");
-    }
-
-    #[test]
-    fn formats() {
-        assert_eq!(duration(540), "9m");
-        assert_eq!(duration(4320), "1h12m");
-        assert_eq!(duration(42), "42s");
-        assert_eq!(tokens(84_200), "84.2k");
-        assert_eq!(trunc("abcdef", 4), "abc…");
-    }
-
-    #[test]
-    fn put_ignores_cells_outside_the_buffer() {
-        let mut buf = Buffer::empty(Rect::new(0, 0, 10, 3));
-        let clip = Rect::new(0, 0, 10, 3);
-        put(&mut buf, clip, 17, 122, "x", Style::new());
-        put(&mut buf, clip, 8, 1, "abcdef", Style::new());
-        assert_eq!(buf[(8, 1)].symbol(), "a");
-        assert_eq!(buf[(9, 1)].symbol(), "b");
-    }
-
-    #[test]
-    fn sparkline_scales() {
-        let mut s = Series::default();
-        for v in [0.0, 1.0, 2.0, 3.0] {
-            s.push(v);
-        }
-        assert_eq!(sparkline(&s, 6), "  ▁▃▆█");
-    }
-}
-
 /// What a tool call does, in plain words: "Bash · running tests",
 /// "Edit · SetupWizardPage.tsx", "Agent → new tester". The raw command stays in
 /// the agent detail view.
@@ -326,4 +286,44 @@ pub fn plain_activity(app: &App, tool: &str, target: &str) -> String {
     format!("{mark}{tool} · {what}")
         .trim_end_matches(" · ")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bar_fills_proportionally() {
+        assert_eq!(bar(0, 4, '█', '░'), "░░░░");
+        assert_eq!(bar(50, 4, '█', '░'), "██░░");
+        assert_eq!(bar(100, 4, '█', '░'), "████");
+    }
+
+    #[test]
+    fn formats() {
+        assert_eq!(duration(540), "9m");
+        assert_eq!(duration(4320), "1h12m");
+        assert_eq!(duration(42), "42s");
+        assert_eq!(tokens(84_200), "84.2k");
+        assert_eq!(trunc("abcdef", 4), "abc…");
+    }
+
+    #[test]
+    fn put_ignores_cells_outside_the_buffer() {
+        let mut buf = Buffer::empty(Rect::new(0, 0, 10, 3));
+        let clip = Rect::new(0, 0, 10, 3);
+        put(&mut buf, clip, 17, 122, "x", Style::new());
+        put(&mut buf, clip, 8, 1, "abcdef", Style::new());
+        assert_eq!(buf[(8, 1)].symbol(), "a");
+        assert_eq!(buf[(9, 1)].symbol(), "b");
+    }
+
+    #[test]
+    fn sparkline_scales() {
+        let mut s = Series::default();
+        for v in [0.0, 1.0, 2.0, 3.0] {
+            s.push(v);
+        }
+        assert_eq!(sparkline(&s, 6), "  ▁▃▆█");
+    }
 }
