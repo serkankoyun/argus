@@ -157,7 +157,7 @@ pub fn draw_links(
         let glyph = if *n >= 10 { "•" } else { "·" };
         for (x, y) in layout::line_cells((na.x, na.y), (nb.x, nb.y)) {
             if area.contains(Position { x, y }) {
-                buf.set_string(x, y, glyph, style);
+                put(buf, area, x, y, glyph, style);
             }
         }
     }
@@ -176,7 +176,9 @@ pub fn draw_links(
         if area.contains(Position { x, y }) {
             let c = kind_color(m.kind);
             if !labels {
-                buf.set_string(
+                put(
+                    buf,
+                    area,
                     x,
                     y,
                     m.kind.glyph(),
@@ -184,7 +186,9 @@ pub fn draw_links(
                 );
                 continue;
             }
-            buf.set_string(
+            put(
+                buf,
+                area,
                 x,
                 y,
                 m.kind.glyph(),
@@ -193,7 +197,9 @@ pub fn draw_links(
             let label = format!(" {} ", trunc(&m.label, 22));
             let lx = x.saturating_add(2);
             let room = (area.x + area.width).saturating_sub(lx) as usize;
-            buf.set_stringn(
+            putn(
+                buf,
+                area,
                 lx,
                 y,
                 &label,

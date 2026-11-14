@@ -241,10 +241,14 @@ jump hosts, ports).
    ```sh
    argus --host user@server
    argus --host prod-1 --host gpu-2          # aliases from ~/.ssh/config
-   argus --host prod-1 --no-local            # only the remote machine
+   argus --host prod-1 --no-local            # only the remote machine, not this one
    ```
 
    Or add a host while Argus is running: press `:` and type `connect user@server`.
+
+   By default Argus watches **this machine and** the `--host` machines together. If this
+   machine has no Claude Code sessions it is hidden; use `--no-local` to leave it out
+   entirely.
 
 3. On first connection Argus looks for `argus` on the remote machine (on its `PATH` and in
    `~/.cache/argus`, `~/.local/bin`, `~/.cargo/bin`, `/usr/local/bin` and the Homebrew
@@ -333,6 +337,9 @@ order:
 
 Remote copies in `~/.cache/argus/` are only used on servers and do not affect your local
 version.
+
+**Argus crashes with "index outside of buffer" (v0.1.2 and older)** — Happened when more
+agents existed than fit on screen (common with real servers). Fixed in v0.1.3; update Argus.
 
 **Keys do nothing while remote hosts are connected (v0.1.1 and older)** — The background
 `ssh` process read the keyboard and swallowed key presses, so keys worked in `--demo` but

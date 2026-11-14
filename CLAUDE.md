@@ -44,6 +44,9 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
   Use narrow glyphs (► ◄ █ ░, text like `enter`) and keep `terminal.clear()` on view changes.
 - **Windows key events**: crossterm reports press *and* release; act on everything except
   `KeyEventKind::Release`. Offer alternatives (F-keys, mouse) and `--debug-keys` for diagnosis.
+- **Never write outside the buffer**: custom-drawn views must use `put`/`putn` from
+  `src/ui/common.rs`, never `Buffer::set_string` directly — ratatui panics on out-of-bounds
+  writes, and real data (dozens of sessions) overflows layouts that the demo never fills.
 - **Child processes and the terminal**: every spawned process (`ssh`, `claude`) must get
   `stdin(Stdio::null())` unless it is fed through a pipe. An inherited stdin lets the child read
   the console and steal the TUI's key presses (seen on Windows with `--host`: keys worked only

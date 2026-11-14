@@ -152,14 +152,18 @@ fn draw_bubble(buf: &mut Buffer, area: Rect, n: &Node, m: &Message, app: &App) {
     let x = n.x.saturating_sub(w / 2).max(area.x);
     let room = (area.x + area.width).saturating_sub(x) as usize;
     if area.contains(Position { x, y }) {
-        buf.set_stringn(
+        putn(
+            buf,
+            area,
             x,
             y,
             &text,
             room,
             Style::new().fg(FG).bg(Color::Rgb(13, 17, 23)),
         );
-        buf.set_stringn(
+        putn(
+            buf,
+            area,
             x + 1,
             y,
             m.kind.glyph(),

@@ -86,7 +86,9 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
         } else {
             x
         };
-        buf.set_string(
+        put(
+            buf,
+            area,
             lx,
             area.y,
             label,
@@ -97,7 +99,9 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
             },
         );
     }
-    buf.set_string(
+    put(
+        buf,
+        area,
         tl.x + tl.width + 1,
         area.y,
         trunc(&i.t("lanes-now-col"), NOW_W as usize),
@@ -131,7 +135,9 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
             break;
         }
         for x in area.x..area.x + area.width {
-            buf.set_string(
+            put(
+                buf,
+                area,
                 x,
                 y + LANE_H - 1,
                 "─",
@@ -141,14 +147,26 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
         match agent {
             Some(a) => {
                 let c = pulse_color(app, a.state);
-                buf.set_string(
+                put(
+                    buf,
+                    area,
                     area.x,
                     y,
                     format!("{} ", a.state.symbol()),
                     Style::new().fg(c),
                 );
-                buf.set_stringn(area.x + 2, y, &a.name, LABEL_W as usize - 3, bold().fg(FG));
-                buf.set_stringn(
+                putn(
+                    buf,
+                    area,
+                    area.x + 2,
+                    y,
+                    &a.name,
+                    LABEL_W as usize - 3,
+                    bold().fg(FG),
+                );
+                putn(
+                    buf,
+                    area,
                     area.x + 2,
                     y + 1,
                     &a.host,
@@ -161,8 +179,10 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
                     a.state.symbol()
                 };
                 let nx = tl.x + tl.width + 1;
-                buf.set_string(nx, y, format!("{spin} "), Style::new().fg(c));
-                buf.set_stringn(
+                put(buf, area, nx, y, format!("{spin} "), Style::new().fg(c));
+                putn(
+                    buf,
+                    area,
                     nx + 2,
                     y,
                     now_text(app, a),
@@ -170,7 +190,9 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
                     Style::new().fg(FG),
                 );
                 let (label, who, wc) = waiting_for(app, a);
-                buf.set_stringn(
+                putn(
+                    buf,
+                    area,
                     nx + 2,
                     y + 1,
                     format!("{label} {who}"),
@@ -180,9 +202,11 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
             }
             None => {
                 let c = pulse_color(app, AgentState::Waiting);
-                buf.set_string(area.x, y, "▲ ", Style::new().fg(c));
-                buf.set_string(area.x + 2, y, i.t("you"), bold().fg(FG));
-                buf.set_stringn(
+                put(buf, area, area.x, y, "▲ ", Style::new().fg(c));
+                put(buf, area, area.x + 2, y, i.t("you"), bold().fg(FG));
+                putn(
+                    buf,
+                    area,
                     tl.x + tl.width + 3,
                     y,
                     i.t("press-a"),
@@ -214,9 +238,9 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
             trunc(&format!("{} {}", t.tool, t.target), w as usize),
             w = w as usize
         );
-        buf.set_string(x0, y + 1, "▏", Style::new().fg(c).bg(darken(c)));
+        put(buf, area, x0, y + 1, "▏", Style::new().fg(c).bg(darken(c)));
         if w > 1 {
-            buf.set_stringn(x0 + 1, y + 1, &text, w as usize - 1, style);
+            putn(buf, area, x0 + 1, y + 1, &text, w as usize - 1, style);
         }
     }
 
@@ -234,16 +258,25 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
         let (lo, hi) = (ya.min(yb), ya.max(yb));
         for y in lo..=hi {
             if area.contains(Position { x, y }) {
-                buf.set_string(x, y, "┊", Style::new().fg(c));
+                put(buf, area, x, y, "┊", Style::new().fg(c));
             }
         }
         let head = if yb > ya { "▼" } else { "▲" };
-        buf.set_string(x, yb, head, Style::new().fg(c).add_modifier(Modifier::BOLD));
+        put(
+            buf,
+            area,
+            x,
+            yb,
+            head,
+            Style::new().fg(c).add_modifier(Modifier::BOLD),
+        );
         let mid = (lo + hi) / 2;
         let chip = format!(" {} ", trunc(&m.label, 20));
         let room = (tl.x + tl.width).saturating_sub(x + 1) as usize;
         if room > 4 {
-            buf.set_stringn(
+            putn(
+                buf,
+                area,
                 x + 1,
                 mid,
                 chip,

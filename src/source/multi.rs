@@ -37,6 +37,12 @@ impl Source for MultiSource {
             out.tools.extend(snap.tools);
             out.tasks.extend(snap.tasks);
         }
+        // With remote hosts, hide the local machine when it has no agents of its own.
+        if self.sources.len() > 1 {
+            let agents = &out.agents;
+            out.hosts
+                .retain(|h| h.region != "local" || agents.iter().any(|a| a.host == h.name));
+        }
         out.messages.sort_by_key(|m| m.ts);
         out.tools.sort_by_key(|t| t.ts);
         out.agents

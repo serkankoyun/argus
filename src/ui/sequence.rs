@@ -62,9 +62,9 @@ fn draw_sequence(buf: &mut Buffer, area: Rect, app: &App) {
         let label = trunc(&name(app, id), lane_w.saturating_sub(2) as usize);
         let x = cx(i).saturating_sub(label.chars().count() as u16 / 2);
         let color = if id == YOU { AMBER } else { PURPLE };
-        buf.set_string(x, area.y, &label, bold().fg(color));
+        put(buf, area, x, area.y, &label, bold().fg(color));
         for y in area.y + 1..area.y + area.height {
-            buf.set_string(cx(i), y, "┆", Style::new().fg(BORDER));
+            put(buf, area, cx(i), y, "┆", Style::new().fg(BORDER));
         }
     }
     let rows = (area.height.saturating_sub(2) / 2) as usize;
@@ -79,7 +79,7 @@ fn draw_sequence(buf: &mut Buffer, area: Rect, app: &App) {
         };
         let c = kind_color(m.kind);
         let fresh = app.now - m.ts < 3_000;
-        buf.set_string(area.x, y + 1, clock(m.ts), Style::new().fg(DIM));
+        put(buf, area, area.x, y + 1, clock(m.ts), Style::new().fg(DIM));
         if a == b {
             continue;
         }
@@ -90,12 +90,12 @@ fn draw_sequence(buf: &mut Buffer, area: Rect, app: &App) {
             Style::new().fg(c)
         };
         for x in lo + 1..hi {
-            buf.set_string(x, y + 1, "─", style);
+            put(buf, area, x, y + 1, "─", style);
         }
         if b > a {
-            buf.set_string(hi - 1, y + 1, "►", style);
+            put(buf, area, hi - 1, y + 1, "►", style);
         } else {
-            buf.set_string(lo + 1, y + 1, "◄", style);
+            put(buf, area, lo + 1, y + 1, "◄", style);
         }
         let label = trunc(&format!(" {} {} ", app.i18n.t(m.kind.key()), m.label), 44);
         let len = label.chars().count() as u16;
@@ -104,14 +104,23 @@ fn draw_sequence(buf: &mut Buffer, area: Rect, app: &App) {
         let lx = ((lo + hi) / 2)
             .saturating_sub(len / 2)
             .clamp(left_edge, right_edge.saturating_sub(len).max(left_edge));
-        buf.set_stringn(
+        putn(
+            buf,
+            area,
             lx,
             y,
             &label,
             (right_edge - lx) as usize,
             Style::new().fg(FG),
         );
-        buf.set_string(lx + 1, y, app.i18n.t(m.kind.key()), Style::new().fg(c));
+        put(
+            buf,
+            area,
+            lx + 1,
+            y,
+            app.i18n.t(m.kind.key()),
+            Style::new().fg(c),
+        );
     }
 }
 

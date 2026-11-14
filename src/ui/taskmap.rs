@@ -140,13 +140,13 @@ fn draw_map(buf: &mut Buffer, area: Rect, app: &App) {
             let cells = line_cells(from, to);
             for &(x, y) in &cells {
                 if area.contains(Position { x, y }) {
-                    buf.set_string(x, y, "·", Style::new().fg(c));
+                    put(buf, area, x, y, "·", Style::new().fg(c));
                 }
             }
             if matches!(blocker, TaskStatus::Done | TaskStatus::InProgress) && !cells.is_empty() {
                 let phase = ((app.now / 60) as usize + t.id.len() * 7) % (cells.len() * 2);
                 if let Some(&(x, y)) = cells.get(phase) {
-                    buf.set_string(x, y, "●", Style::new().fg(c));
+                    put(buf, area, x, y, "●", Style::new().fg(c));
                 }
             }
         }

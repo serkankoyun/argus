@@ -1,5 +1,7 @@
 //! Shared widgets, colors and formatting helpers.
 
+use ratatui::buffer::Buffer;
+use ratatui::layout::{Position, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::Span;
 use ratatui::widgets::Block;
@@ -21,6 +23,31 @@ pub const BORDER: Color = Color::Rgb(48, 54, 61);
 pub const SELECTED_BG: Color = Color::Rgb(31, 42, 55);
 
 pub const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+/// Writes `s` at (x, y) only if that cell lies inside both `clip` and the buffer,
+/// truncating at the right edge. Custom-drawn views use this instead of
+/// `Buffer::set_string`, which panics outside the buffer.
+pub fn put<S: AsRef<str>>(buf: &mut Buffer, clip: Rect, x: u16, y: u16, s: S, style: Style) {
+    putn(buf, clip, x, y, s, usize::MAX, style);
+}
+
+/// Like [`put`], writing at most `n` columns.
+pub fn putn<S: AsRef<str>>(
+    buf: &mut Buffer,
+    clip: Rect,
+    x: u16,
+    y: u16,
+    s: S,
+    n: usize,
+    style: Style,
+) {
+    let r = clip.intersection(buf.area);
+    if !r.contains(Position { x, y }) {
+        return;
+    }
+    let room = (r.x + r.width - x) as usize;
+    buf.set_stringn(x, y, s, n.min(room), style);
+}
 
 /// A bordered pane with a title, highlighted when focused.
 pub fn pane<'a>(title: impl Into<String>, focused: bool) -> Block<'a> {
@@ -209,6 +236,16 @@ mod tests {
         assert_eq!(duration(42), "42s");
         assert_eq!(tokens(84_200), "84.2k");
         assert_eq!(trunc("abcdef", 4), "abc…");
+    }
+
+    #[test]
+    fn put_ignores_cells_outside_the_buffer() {
+        let mut buf = Buffer::empty(Rect::new(0, 0, 10, 3));
+        let clip = Rect::new(0, 0, 10, 3);
+        put(&mut buf, clip, 17, 122, "x", Style::new());
+        put(&mut buf, clip, 8, 1, "abcdef", Style::new());
+        assert_eq!(buf[(8, 1)].symbol(), "a");
+        assert_eq!(buf[(9, 1)].symbol(), "b");
     }
 
     #[test]
