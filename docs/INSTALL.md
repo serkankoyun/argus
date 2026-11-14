@@ -65,7 +65,9 @@ scoop install argus/argus
 argus --version
 ```
 
-Update with `scoop update argus`. Run Argus in **Windows Terminal**.
+Update with `scoop update` followed by `scoop update argus` (the first command refreshes
+Scoop's package lists; without it Scoop does not see new versions). Run Argus in
+**Windows Terminal**.
 
 > **Not on winget yet.** `winget install argus` currently finds *other* programs that are
 > also called Argus — do not install those. This Argus will be published on winget as
@@ -312,6 +314,12 @@ certain symbols two cells wide. Since v0.1.1 Argus avoids those symbols and repa
 screen on every view change; update if you see this. Using Cascadia Mono or JetBrains Mono
 in Windows Terminal also helps.
 
+**`argus --version` still shows the old version after updating** — Refresh the package
+lists first (`scoop update` / `brew update`), then update Argus. If it is still old, another
+copy comes first on your `PATH`: `where.exe argus` (Windows) or `which -a argus` lists them;
+remove the one you installed manually. Remote copies in `~/.cache/argus/` are only used on
+servers and do not affect your local version.
+
 **Number keys do not switch views** — Use `F1`–`F10`, `Tab` / `Shift+Tab`, or click the
 tabs with the mouse. Start Argus with `argus --debug-keys` to see which key it receives
 (bottom right) and include that in an issue.
@@ -348,7 +356,7 @@ terminal, `argus --version` and, if possible, a screenshot.
 
 ## 7. Updating and uninstalling
 
-**Update:** `brew upgrade argus` or `scoop update argus`. For a manual install, download
+**Update:** `brew update && brew upgrade argus`, or `scoop update` then `scoop update argus`. For a manual install, download
 the new release and replace the binary the same way you installed it.
 Remote copies in `~/.cache/argus/` are refreshed by deleting that folder on the remote.
 

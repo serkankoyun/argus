@@ -72,6 +72,8 @@ scoop bucket add argus https://github.com/serkankoyun/argus
 scoop install argus/argus
 ```
 
+Update later with `brew update && brew upgrade argus` or `scoop update; scoop update argus`.
+
 Or download an archive for macOS, Linux or Windows from the
 [latest release](https://github.com/serkankoyun/argus/releases), or build from source:
 
