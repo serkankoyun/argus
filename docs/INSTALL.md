@@ -5,6 +5,7 @@ features (approvals from Argus, remote machines over SSH), troubleshooting and r
 
 - [Requirements](#requirements)
 - [1. Install](#1-install)
+  - [With a package manager (recommended)](#with-a-package-manager-recommended)
   - [macOS](#macos)
   - [Linux](#linux)
   - [Windows](#windows)
@@ -31,6 +32,44 @@ features (approvals from Argus, remote machines over SSH), troubleshooting and r
 Argus needs no account, server, port or network connection to watch the local machine.
 
 ## 1. Install
+
+### With a package manager (recommended)
+
+The easiest way: one command installs Argus, puts it on your `PATH`, and later updates it.
+
+**macOS and Linux — Homebrew**
+
+```sh
+brew tap serkankoyun/argus https://github.com/serkankoyun/argus
+brew install serkankoyun/argus/argus
+argus --version
+```
+
+Homebrew picks the right build for your machine (Apple Silicon / Intel, ARM / x86-64) and
+does not trigger the macOS "unverified developer" warning. Update with `brew upgrade argus`.
+
+**Windows — Scoop**
+
+If you do not have [Scoop](https://scoop.sh) yet, install it first in PowerShell:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+```
+
+Then:
+
+```powershell
+scoop bucket add argus https://github.com/serkankoyun/argus
+scoop install argus/argus
+argus --version
+```
+
+Update with `scoop update argus`. Run Argus in **Windows Terminal**.
+
+`winget install argus` is planned; until then use Scoop or the manual steps below.
+
+### Manual download
 
 Download the archive for your platform from the
 [releases page](https://github.com/serkankoyun/argus/releases). Each release also contains
@@ -265,10 +304,12 @@ terminal, `argus --version` and, if possible, a screenshot.
 
 ## 7. Updating and uninstalling
 
-**Update:** download the new release and replace the binary the same way you installed it.
+**Update:** `brew upgrade argus` or `scoop update argus`. For a manual install, download
+the new release and replace the binary the same way you installed it.
 Remote copies in `~/.cache/argus/` are refreshed by deleting that folder on the remote.
 
-**Uninstall:**
+**Uninstall:** `brew uninstall argus` (and `brew untap serkankoyun/argus`), or
+`scoop uninstall argus` (and `scoop bucket rm argus`). For a manual install:
 
 ```sh
 rm /usr/local/bin/argus          # or ~/.local/bin/argus, or ~/.cargo/bin/argus

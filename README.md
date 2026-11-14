@@ -57,18 +57,29 @@ conversation between your agents.
 
 ## Install
 
-**Full guide: [docs/INSTALL.md](docs/INSTALL.md)** — per-platform steps, first run,
-approvals, remote machines, troubleshooting and uninstalling.
-
-Download a binary for macOS, Linux or Windows from the
-[latest release](https://github.com/serkankoyun/argus/releases), or build from source
-with a recent stable Rust toolchain:
+**macOS / Linux (Homebrew)**
 
 ```sh
-git clone https://github.com/serkankoyun/argus
-cd argus
-cargo run --release -- --demo
+brew tap serkankoyun/argus https://github.com/serkankoyun/argus
+brew install serkankoyun/argus/argus
 ```
+
+**Windows (Scoop)** — run it in Windows Terminal
+
+```powershell
+scoop bucket add argus https://github.com/serkankoyun/argus
+scoop install argus/argus
+```
+
+Or download an archive for macOS, Linux or Windows from the
+[latest release](https://github.com/serkankoyun/argus/releases), or build from source:
+
+```sh
+cargo install --git https://github.com/serkankoyun/argus
+```
+
+**Full guide: [docs/INSTALL.md](docs/INSTALL.md)** — per-platform steps, first run,
+approvals, remote machines, troubleshooting and uninstalling.
 
 ## Usage
 
@@ -120,7 +131,7 @@ Claude Code then asks Argus first: press `a` or `r`. If nobody answers within
 - **v0.2** ✓ — Graph, Room, Lanes, Agent, Sequence, Fleet, Channel, Task map, Pair views
 - **v0.3** ✓ — remote machines over SSH, Fleet view, Windows support
 - **v0.4** ✓ — command bar, launching agents, remote approvals, teams
-- **v1.0** — Channel, Task map and Pair views, replay, packages
+- **v1.0** — replay, per-team budgets and metrics, winget, documentation site
 
 See [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) for the full design.
 

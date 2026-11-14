@@ -1,0 +1,40 @@
+name: Packages
+
+# Installs Argus the way users do (Homebrew, Scoop) to prove the manifests work.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["bucket/**", "Formula/**"]
+
+jobs:
+  homebrew:
+    name: brew (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - name: Set up Homebrew
+        if: runner.os == 'Linux'
+        uses: Homebrew/actions/setup-homebrew@master
+      - name: Install from the tap
+        run: |
+          brew tap serkankoyun/argus https://github.com/serkankoyun/argus
+          brew install serkankoyun/argus/argus
+          argus --version
+          argus --demo --help > /dev/null
+
+  scoop:
+    runs-on: windows-latest
+    steps:
+      - name: Install Scoop and Argus
+        shell: pwsh
+        run: |
+          Invoke-RestMethod -Uri https://get.scoop.sh -OutFile install.ps1
+          .\install.ps1 -RunAsAdmin
+          $env:PATH = "$env:USERPROFILE\scoop\shims;$env:PATH"
+          scoop bucket add argus https://github.com/serkankoyun/argus
+          scoop install argus/argus
+          argus --version

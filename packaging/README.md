@@ -14,6 +14,12 @@ This package contains:
 
 Argus is a terminal program: run it from a terminal, not by double-clicking.
 
+Tip: a package manager installs and updates Argus with one command instead —
+`brew install serkankoyun/argus/argus` (macOS/Linux, after
+`brew tap serkankoyun/argus https://github.com/serkankoyun/argus`) or
+`scoop install argus/argus` (Windows, after
+`scoop bucket add argus https://github.com/serkankoyun/argus`). See `INSTALL.md`.
+
 **macOS**
 
 ```sh
