@@ -62,13 +62,29 @@ const POLL: Duration = Duration::from_millis(1000);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let claude_dir = cli
+        .claude_dir
+        .clone()
+        .unwrap_or_else(source::claude::default_dir);
+    if let Some(Cmd::Collect) = cli.command {
+        return source::remote::collect(Box::new(ClaudeSource::new(claude_dir)), POLL);
+    }
     let i18n = I18n::new(cli.lang.as_deref());
     let source: Box<dyn Source> = if cli.demo {
         Box::new(DemoSource::new(&i18n.lang))
     } else {
-        Box::new(ClaudeSource::new(
-            cli.claude_dir.unwrap_or_else(source::claude::default_dir),
-        ))
+        let mut sources: Vec<Box<dyn Source>> = Vec::new();
+        if !cli.no_local || cli.hosts.is_empty() {
+            sources.push(Box::new(ClaudeSource::new(claude_dir)));
+        }
+        for h in &cli.hosts {
+            sources.push(Box::new(RemoteSource::new(h.clone())));
+        }
+        if sources.len() == 1 {
+            sources.remove(0)
+        } else {
+            Box::new(MultiSource::new(sources))
+        }
     };
     let rx = source::spawn(source, POLL);
     let mut app = App::new(i18n, rx, cli.demo);
