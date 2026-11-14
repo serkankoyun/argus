@@ -329,7 +329,7 @@ jump hosts, ports).
    Or add a host while Argus is running: press `:` and type `connect user@server`.
 
    To look at one machine at a time, press `s` (cycles through hosts) or open the Fleet
-   view (`4`), choose a host with `↑↓` and press `Enter`; `esc` on the Overview returns to
+   view (`4`), choose a host with `↑↓` and press `Enter`; `esc` from any view returns to
    all hosts.
 
    By default Argus watches **this machine and** the `--host` machines together. If this
@@ -447,6 +447,11 @@ mapped agents. It now maps orchestrator runs when a `runs/` folder exists (see "
 stages in the Task map"). Agents started with a description like `R-20261114-1842-x
 analist-hekim-verisi` were named after the run id; since v0.1.29 the word after the run id
 is their name.
+
+**After picking a team, every view stays on that team** — That is the team filter (the header
+shows `team <name>`). Press `esc` once in any view (except the agent detail, where `esc`
+goes back) to see all teams again; before v0.1.30 `esc` first went to the Overview and only
+a second `esc` cleared the filter. `T` also cycles teams and ends at "all".
 
 **An unrelated session shows as a second coordinator** — Any session that started subagents
 counted as a coordinator. Since v0.1.30, when `teams.json` lists team codes, only a session

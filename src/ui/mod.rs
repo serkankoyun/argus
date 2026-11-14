@@ -224,7 +224,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
                 "key-show-done"
             }),
         ];
-        if (app.team.is_some() || app.host.is_some()) && app.view == View::Overview {
+        if (app.team.is_some() || app.host.is_some()) && app.view != View::AgentDetail {
             v.extend([key("esc"), label("key-leave-team")]);
         }
         v
@@ -369,6 +369,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Maintainer, Nov 14: after picking a team, views 5, 6, 7 stayed on that
+    /// team and one Esc did not bring all teams back.
+    #[test]
+    fn one_esc_leaves_the_team_from_any_view() {
+        use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let mut app = app_with(crowded());
+        app.team = Some("auth-refactor".into());
+        app.view = View::Graph;
+        app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert_eq!(app.team, None);
+        assert_eq!(app.view, View::Teams);
+        // Leaving an agent's detail stays a plain "back".
+        app.team = Some("auth-refactor".into());
+        app.view = View::AgentDetail;
+        app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(app.team.is_some());
     }
 
     #[test]

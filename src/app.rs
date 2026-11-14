@@ -573,7 +573,10 @@ impl App {
                 }
             }
             KeyCode::Esc => {
-                if self.view == View::Overview && (self.team.is_some() || self.host.is_some()) {
+                // With a team or host chosen, one Esc from any view (except
+                // leaving an agent's detail) goes back to everything.
+                let scoped = self.team.is_some() || self.host.is_some();
+                if scoped && self.view != View::AgentDetail {
                     // Leave the team/host: back to everything, where it was chosen.
                     let back = if self.team.is_some() {
                         View::Teams
