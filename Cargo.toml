@@ -1,0 +1,31 @@
+[package]
+name = "argus-tui"
+version = "0.1.0-dev"
+edition = "2021"
+rust-version = "1.80"
+description = "Watch and steer your Claude Code agents live, from the terminal, on any machine."
+license = "MIT"
+repository = "https://github.com/serkankoyun/argus"
+readme = "README.md"
+keywords = ["claude", "agents", "tui", "monitoring", "terminal"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "argus"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.29"
+fluent-bundle = "0.15"
+unic-langid = "0.9"
+sys-locale = "0.3"
+
+[dev-dependencies]
+fluent-syntax = "0.11"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

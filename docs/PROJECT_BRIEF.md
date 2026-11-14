@@ -1,0 +1,90 @@
+# Argus — Project Brief & Decisions
+
+> Watch and steer your Claude Code agents live, from the terminal, on any machine.
+> This brief captures the design session of November 14, 2026. Read it first
+> whenever work resumes in a new session.
+
+## Vision
+
+The "AI agents at work" visuals going viral on X are either cartoons (pixel offices)
+or bare metrics (htop-style). Argus combines both worlds: a classic terminal aesthetic,
+complete metrics, **and a live, visual view of how agents hand off tasks and message
+each other**. It brings agents running on different machines into a single screen.
+
+## Decisions
+
+| Topic | Decision |
+|---|---|
+| Name | **Argus** (the hundred-eyed watchman). `argus` and `argus-cli` are taken on crates.io → package name `argus-tui`, binary name `argus` |
+| Target agent | Claude Code (Codex and others later via adapters) |
+| Language | Rust + ratatui + crossterm |
+| Platforms | macOS (Intel + Apple Silicon), Linux, Windows — single static binary |
+| UI language | Multilingual; English (default) + Turkish in the first release (`locales/*.ftl`, Fluent). Detected from the system, overridable with `--lang` |
+| Repo language | Everything on GitHub is in English: README, docs, code comments, commits, issues, PRs |
+| License | MIT |
+| Repository | `argus` on the maintainer's personal GitHub account |
+| Aesthetic | Dark theme, monospace, ratatui bordered panes, braille lines, no cartoons |
+
+## Screens (10)
+
+Design mockups (private canvas, owner only): https://claude.ai/artifact/7QZw7PkMj3kAiQHbydCgU5
+
+1. **Overview** — hosts, agent tree (state, tool, tokens, context, cost), flow summary, metrics, event log
+2. **Sequence** — agents as lanes, messages as arrows; task board; selected message details
+3. **Agent detail** — context breakdown, tokens/cache/cost, throughput, tool calls, files touched, live transcript
+4. **Fleet** — collector status, RTT, clock skew, alerts, topology, cost per host
+5. **Live graph** — nodes and edges, messages travel along edges, edge width = traffic
+6. **Agent room** — a "now" line on every agent, a bubble for the request it is sending, open requests with wait times
+7. **Live lanes** — time flows right to left, vertical arrows between agents, "who asks whom for what" matrix
+8. **Channel** — IRC/weechat-style live chat with action and approval lines, member list
+9. **Task map** — task dependencies, hand-offs, bottlenecks and the critical path
+10. **Pair view** — two agents' terminals side by side with the message channel between them
+
+Switching: `1`–`0`, `tab`, `:view <name>`. The selected agent and time cursor carry over between views.
+Agent messages and "now" descriptions are shown in the user's language.
+
+## Architecture
+
+```
+[Machine X: Claude Code] ── collector ──┐
+[Machine Y: Claude Code] ── collector ──┼──▶ argus (TUI, your terminal)
+[Local machine]          ── collector ──┘        (optional: central hub)
+```
+
+- **Collector:** a mode of the same `argus` binary. Reads `~/.claude` (session JSONL, teams/inboxes,
+  tasks), the process table and optional hook events; normalizes them into one event schema.
+- **Connecting:** `:connect X` → reuses the user's SSH, copies and starts the collector if missing,
+  streams over the SSH channel. No open ports, no VPN. Nothing is left running on disconnect
+  (optional persistent service mode). Without SSH (e.g. Windows) the collector dials out over TLS.
+- **Hub (optional):** for team-wide monitoring and continuous recording.
+- **Platform-independent commands:** the TUI sends structured commands and the collector executes
+  them locally (no shell-quoting issues across bash/PowerShell).
+
+## Driving agents
+
+- New work: `> prod-1 ~/repo: update the README` → collector runs `claude -p ... --output-format stream-json`
+- Instructions to a running agent: via `--resume` / Agent SDK if Argus started it; tmux or the teams inbox otherwise (fragile)
+- Approvals: routed to the TUI via hooks / `--permission-prompt-tool`; `a` approve, `r` reject
+- Recommendation: let Argus launch agents whenever possible
+- Limitation: interactive menu commands (`/config` etc.) are not supported
+
+## Platform notes
+
+- Windows: OpenSSH server is off by default; Claude Code may run natively or inside WSL — scan both; no tmux
+- Legacy `cmd` renders braille/colors poorly; Windows Terminal is fine; color depth is detected
+- CI: GitHub Actions matrix on Windows + macOS + Linux; tagged releases built automatically (cargo-dist)
+- README GIFs generated automatically with `vhs`
+
+## Roadmap
+
+- **v0.1** — local machine, Overview, agent tree, metrics, EN+TR, view-switching foundation
+- **v0.2** — Live graph, Agent room, Live lanes
+- **v0.3** — remote machines over SSH, Fleet view, Windows
+- **v0.4** — command bar, launching agents, remote approvals (hooks)
+- **v1.0** — Channel, Task map, Pair view, replay, documentation, Homebrew/Scoop
+
+## Build environment constraint
+
+Claude's workspace has Rust installed but no network access, so crates cannot be downloaded there.
+Options: (1) enable package installs in Claude settings, (2) let GitHub Actions do the builds,
+(3) build on the maintainer's machine.
