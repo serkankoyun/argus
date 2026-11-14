@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Creating a release in the GitHub UI (with a new v* tag) also builds it.
+  release:
+    types: [published]
 
 permissions:
   contents: write
