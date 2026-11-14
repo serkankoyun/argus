@@ -1,6 +1,6 @@
 [package]
 name = "argus-tui"
-version = "0.1.25"
+version = "0.1.26"
 edition = "2021"
 rust-version = "1.85"
 description = "Watch and steer your Claude Code agents live, from the terminal, on any machine."

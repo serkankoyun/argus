@@ -92,6 +92,26 @@ impl ClaudeSource {
     }
 }
 
+/// Agents Argus could only name `agent-<id>` take the name their task starts
+/// with, by the `<agent-name> · <run> · <task>` convention, and the task keeps
+/// the rest.
+pub fn name_from_task(snap: &mut Snapshot) {
+    for a in snap.agents.iter_mut() {
+        if let Some((head, rest)) = a.task.split_once(" · ") {
+            let head = head.trim();
+            if head.contains(' ') || head.is_empty() {
+                continue;
+            }
+            if a.name.starts_with("agent-") || a.name == head {
+                a.name = head.to_string();
+            }
+            if a.name == head {
+                a.task = rest.trim_start_matches([' ', '·']).to_string();
+            }
+        }
+    }
+}
+
 /// Nested subagents: a team lead's own subagents are stored next to it, flat
 /// under the session, so the file layout names the session as everyone's
 /// parent. The real parent is whoever's spawn result returned the agent's id.
@@ -150,6 +170,7 @@ impl Source for ClaudeSource {
         apply_requests(&mut snap, &hook::pending(&self.root));
         self.events.poll();
         self.events.apply(&mut snap, now);
+        name_from_task(&mut snap);
         if let Some(rules) = super::groups::Rules::load(&self.root) {
             rules.apply(&mut snap);
         }
@@ -586,7 +607,16 @@ impl Session {
     /// Keeps prompts a person typed; skips harness notices (`<...>` blocks).
     fn remember_prompt(&mut self, text: &str) {
         let t = text.trim();
-        if !t.is_empty() && !t.starts_with('<') && !t.starts_with("Caveat:") {
+        // Harness notices are not requests from a person.
+        let notice = [
+            "Caveat:",
+            "[Request interrupted",
+            "Another Claude session",
+            "This session is being continued",
+        ]
+        .iter()
+        .any(|n| t.starts_with(n));
+        if !t.is_empty() && !t.starts_with('<') && !notice {
             self.last_prompt = first_sentence(t);
         }
     }
@@ -710,13 +740,37 @@ fn short(s: &str, n: usize) -> String {
 }
 
 /// A short, human-readable target for a tool call.
+/// The part of a shell command that says what it does: `cd …`, variable
+/// assignments and `export`s in front are dropped.
+fn bash_core(cmd: &str) -> String {
+    let parts: Vec<&str> = cmd
+        .split("&&")
+        .flat_map(|p| p.split(';'))
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .collect();
+    let setup = |p: &str| {
+        p.starts_with("cd ")
+            || p.starts_with("export ")
+            || p.split_whitespace()
+                .next()
+                .is_some_and(|w| w.contains('=') && !w.starts_with('-'))
+    };
+    let core: Vec<&str> = parts.iter().copied().filter(|p| !setup(p)).collect();
+    if core.is_empty() {
+        cmd.trim().to_string()
+    } else {
+        core.join(" && ")
+    }
+}
+
 pub fn tool_target(name: &str, input: &Value) -> String {
     let get = |k: &str| input.get(k).and_then(Value::as_str);
     let path = get("file_path")
         .or_else(|| get("notebook_path"))
         .or_else(|| get("path"));
     let raw = match name {
-        "Bash" => get("command").map(str::to_string),
+        "Bash" => get("command").map(bash_core),
         "Grep" => get("pattern").map(|p| match path {
             Some(dir) => format!("\"{p}\" in {dir}"),
             None => format!("\"{p}\""),
@@ -1597,6 +1651,26 @@ mod tests {
         );
         let snap = build_snapshot([&c].into_iter(), "box", &[], T0 + 30 * 60_000);
         assert_eq!(snap.agents[0].state, AgentState::Done);
+    }
+
+    #[test]
+    fn shell_setup_is_dropped_from_commands() {
+        assert_eq!(
+            bash_core("cd /tmp/x && S=1 npm test -- --run"),
+            "npm test -- --run"
+        );
+        assert_eq!(bash_core("cd /tmp/x"), "cd /tmp/x");
+        let mut snap = Snapshot {
+            agents: vec![Agent {
+                name: "agent-ac4e4d".into(),
+                task: "gelistirici-kabuk-tasarim-gezinme · · Gezinme denetimi".into(),
+                ..Agent::default()
+            }],
+            ..Snapshot::default()
+        };
+        name_from_task(&mut snap);
+        assert_eq!(snap.agents[0].name, "gelistirici-kabuk-tasarim-gezinme");
+        assert_eq!(snap.agents[0].task, "Gezinme denetimi");
     }
 
     #[test]

@@ -182,6 +182,8 @@ pub struct EventLog {
     pub sessions: HashMap<String, Live>,
     /// Agent id -> (name, team, task) reported by events.
     pub identities: HashMap<String, (String, String, String)>,
+    /// Spawned agent id -> id of the agent whose spawn event started it.
+    pub spawners: HashMap<String, String>,
 }
 
 impl EventLog {
@@ -224,6 +226,12 @@ impl EventLog {
             }
         }
         if !e.spawned.is_empty() {
+            let by = if e.agent_id.is_empty() {
+                e.sid.clone()
+            } else {
+                format!("{}/{}", e.sid, e.agent_id)
+            };
+            self.spawners.insert(format!("{}/{}", e.sid, e.spawned), by);
             // The spawn itself is a tool event of the spawning session.
             let parent = Event {
                 spawned: String::new(),
@@ -286,6 +294,15 @@ impl EventLog {
     /// Corrects agent states in `snap` with what the events say.
     pub fn apply(&self, snap: &mut Snapshot, now: Millis) {
         let mut approved = HashSet::new();
+        // A subagent started by another subagent (a team lead) hangs under it.
+        let known: HashSet<String> = snap.agents.iter().map(|a| a.id.clone()).collect();
+        for a in &mut snap.agents {
+            if let Some(p) = self.spawners.get(&a.id) {
+                if *p != a.id && known.contains(p) && a.parent.is_some() {
+                    a.parent = Some(p.clone());
+                }
+            }
+        }
         for a in &mut snap.agents {
             if let Some((name, team, task)) = self.identities.get(&a.id) {
                 if !name.is_empty() {

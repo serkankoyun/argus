@@ -110,21 +110,26 @@ fn draw_card(buf: &mut Buffer, r: Rect, n: &Node, app: &App) {
         Span::styled(format!("{} ", a.name), bold().fg(FG)),
     ]);
     let host = Line::styled(format!(" {} ", a.host), Style::new().fg(DIM)).right_aligned();
-    let text = Line::from(vec![
-        Span::styled(
-            format!("{} ", app.i18n.t("now-label")),
-            Style::new().fg(DIM),
-        ),
+    let activity = match a.state {
+        AgentState::Working if !a.tool.is_empty() => plain_activity(app, &a.tool, &a.now),
+        _ => now_text(app, a),
+    };
+    let mut text = Vec::new();
+    let task = task_text(&a.task);
+    if !task.is_empty() {
+        text.push(Line::styled(task.to_string(), Style::new().fg(FG)));
+    }
+    text.push(Line::from(vec![
         Span::styled(format!("{spin} "), Style::new().fg(c)),
-        Span::styled(now_text(app, a), Style::new().fg(FG)),
-    ]);
+        Span::styled(activity, Style::new().fg(c)),
+    ]));
     let selected = app.selected.as_deref() == Some(a.id.as_str());
     let border = if selected {
         Style::new().fg(ACCENT).add_modifier(Modifier::BOLD)
     } else {
         Style::new().fg(c)
     };
-    Paragraph::new(vec![text])
+    Paragraph::new(text)
         .wrap(Wrap { trim: true })
         .block(
             Block::bordered()

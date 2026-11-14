@@ -403,6 +403,12 @@ parent's team. Team cards list each lead with its agents indented below it.
 **Open requests keep finished work as "working · 31m"** — Fixed in v0.1.24: a task counts as
 answered when its agent finishes (hand-back included), and targets are named, not shown as ids.
 
+**Room and Network show raw commands (`cd /tmp/... && ...`) or `agent-…` names** — Since
+v0.1.26 commands lose their `cd`/variable set-up, Room and Network boxes show each agent's task
+and activity like the Teams view, and an agent named `agent-…` takes the name its task starts
+with (`<agent-name> · <run> · <task>`). Spawn events that carry `agentId` (a lead starting its
+own agents) set the parent.
+
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
 marks it read, or when the sender sends a newer one; unanswered messages leave the list
