@@ -47,19 +47,31 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
             a.state.symbol().to_string()
         };
         let task = task_text(&a.task).to_string();
-        Line::from(vec![
+        let mut spans = vec![
             Span::styled(lead.to_string(), Style::new().fg(BORDER)),
             Span::styled(format!("{glyph} "), Style::new().fg(c)),
             Span::styled(
                 format!("{:<name_w$} ", trunc(&a.name, name_w)),
                 bold().fg(FG),
             ),
-            Span::styled(
+        ];
+        if task.is_empty() {
+            // No task known: the activity takes the task's room.
+            spans.push(Span::styled(
+                trunc(&plain_now(app, a), task_w + 1 + act_w),
+                Style::new().fg(DIM),
+            ));
+        } else {
+            spans.push(Span::styled(
                 format!("{:<task_w$} ", trunc(&task, task_w)),
                 Style::new().fg(FG),
-            ),
-            Span::styled(trunc(&plain_now(app, a), act_w), Style::new().fg(DIM)),
-        ])
+            ));
+            spans.push(Span::styled(
+                trunc(&plain_now(app, a), act_w),
+                Style::new().fg(DIM),
+            ));
+        }
+        Line::from(spans)
     };
     let mut lines: Vec<Line> = Vec::new();
     // Coordinators lead the tree.

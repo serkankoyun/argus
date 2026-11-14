@@ -200,7 +200,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
     let label = |id: &str| Span::styled(format!(" {}  ", app.i18n.t(id)), Style::new().fg(DIM));
     let mut spans = if app.view == View::Teams {
         vec![
-            key("←→"),
+            key("↑↓"),
             label("key-team-move"),
             key("enter"),
             label("teams-open"),
