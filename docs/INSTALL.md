@@ -359,6 +359,12 @@ started. v0.1.6 says when sessions are hidden instead of "No recent Claude Code 
 letter plus Shift, so `T` cycled the team filter instead of opening Teams. Fixed in v0.1.6;
 `F11` (Teams), `F12` (History) or a mouse click on the tab work in any version.
 
+**Background subagents disappear while they run tests; the coordinator is renamed after a
+run folder** — Before v0.1.11 a subagent that wrote nothing for 5 minutes (a long test run)
+counted as finished, and a session was named after its *current* folder. Now a subagent
+with a tool call in flight stays live, and sessions keep the name of the folder they
+started in.
+
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
 marks it read, or when the sender sends a newer one; unanswered messages leave the list

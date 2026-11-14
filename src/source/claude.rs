@@ -315,6 +315,8 @@ pub struct Session {
     team: Option<String>,
     /// Claude Code permission mode (`default`, `acceptEdits`, `bypassPermissions`, ...).
     mode: String,
+    /// Folder of the first transcript line: where the session was started.
+    first_cwd: String,
     first_prompt: String,
     usage: Usage,
     cost: f64,
@@ -353,6 +355,7 @@ impl Session {
             model: String::new(),
             agent_name: None,
             mode: String::new(),
+            first_cwd: String::new(),
             team: None,
             first_prompt: String::new(),
             usage: Usage::default(),
@@ -399,6 +402,11 @@ impl Session {
             self.started = ts;
         }
         self.last = self.last.max(ts);
+        if self.first_cwd.is_empty() {
+            if let Some(c) = v.get("cwd").and_then(Value::as_str) {
+                self.first_cwd = c.to_string();
+            }
+        }
         for (field, slot) in [("cwd", &mut self.cwd), ("gitBranch", &mut self.branch)] {
             if let Some(s) = v.get(field).and_then(Value::as_str) {
                 if !s.is_empty() {
@@ -906,8 +914,15 @@ fn prompt_matches(first_prompt: &str, prompt: &str) -> bool {
     !a.is_empty() && !b.is_empty() && (a.starts_with(&b) || b.starts_with(&a))
 }
 
+/// Named after the folder the session started in: the current folder changes
+/// whenever the agent `cd`s (into a run folder, a worktree, ...).
 fn project_name(s: &Session) -> String {
-    Path::new(&s.cwd)
+    let dir = if s.first_cwd.is_empty() {
+        &s.cwd
+    } else {
+        &s.first_cwd
+    };
+    Path::new(dir)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| s.project.clone())
@@ -1010,7 +1025,10 @@ fn infer_state(
     }
     // Subagents are not processes of their own: the parent's process says
     // nothing about them, only their own activity does.
-    let live = (alive && s.parent.is_none()) || age < 5 * 60_000;
+    // A subagent with a tool call in flight (a long test run writes nothing
+    // until it ends) is still working.
+    let running = s.parent.is_some() && s.pending.values().any(|p| now - p.ts < 6 * 3600 * 1000);
+    let live = (alive && s.parent.is_none()) || running || age < 5 * 60_000;
     if !live {
         return AgentState::Done;
     }
@@ -1360,6 +1378,13 @@ mod tests {
             .messages
             .iter()
             .any(|m| m.kind == MsgKind::Perm && m.to == YOU));
+    }
+
+    #[test]
+    fn subagent_in_a_long_tool_call_is_not_finished() {
+        let c = child();
+        let snap = build_snapshot([&c].into_iter(), "box", &[], T0 + 30 * 60_000);
+        assert_ne!(snap.agents[0].state, AgentState::Done);
     }
 
     #[test]
