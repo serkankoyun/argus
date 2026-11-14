@@ -29,13 +29,14 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 - Commit style: short imperative subject; body explains why.
 
 ## Releasing
-1. Bump `version` in `Cargo.toml`, update docs, push to `main`, wait for green CI.
-2. The maintainer publishes a release in the GitHub UI with a new `vX.Y.Z` tag (Claude
-   sessions cannot create tags or releases).
-3. The **Release** workflow builds 5 targets, attaches archives + `SHA256SUMS`, then
-   regenerates `bucket/argus.json` and `Formula/argus.rb` (`packaging/render.py`) on `main`.
-4. Run the **Packages** workflow (`gh workflow run packages.yml`) to install via Homebrew and
-   Scoop and verify the manifests (bot commits do not trigger workflows on their own).
+The maintainer opted in to automatic releases (Nov 14, 2026):
+1. Bump `version` in `Cargo.toml`, update docs, push to `main`.
+2. When CI is green, **Auto release** (`autorelease.yml`) creates the `vX.Y.Z` pre-release
+   and dispatches **Release**, which builds 5 targets, attaches archives + `SHA256SUMS`,
+   regenerates `bucket/argus.json` and `Formula/argus.rb` (`packaging/render.py`) on `main`
+   and dispatches **Packages** to verify Homebrew and Scoop installs.
+3. Check the runs (`gh run list -R serkankoyun/argus --limit 5`), then tell the maintainer
+   the version is out. A version that already has a tag is never released twice.
 - Re-attach binaries to an existing release: run the Release workflow manually with `tag`.
 
 ## Lessons learned
@@ -71,7 +72,8 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 - **Release packaging**: build archives in `dist/` and upload `dist/*` only; staging folder names
   contain dots and globbing `argus-*.*` picked them up.
 - **Automation limits**: Claude sessions cannot push tags, create releases or change repo
-  settings; workflows pushed by `GITHUB_TOKEN` do not trigger other workflows.
+  settings. Events made with `GITHUB_TOKEN` start no other workflows except
+  `workflow_dispatch`, so automation chains dispatch the next workflow explicitly.
 - **Package updates**: `scoop update <app>` needs `scoop update` first; quit Argus before
   updating on Windows.
 - **Name clash**: winget's `argus` packages are unrelated; reserve `SerkanKoyun.Argus`.

@@ -1,0 +1,49 @@
+name: Auto release
+
+# Publishes a pre-release when a commit on main raises the version in Cargo.toml
+# and CI is green. The maintainer opted in to this so that version bumps reach
+# users without a manual step. Events made with GITHUB_TOKEN do not start other
+# workflows, except workflow_dispatch: the build is dispatched explicitly.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: autorelease
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Version
+        id: v
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          if gh api "repos/${{ github.repository }}/git/refs/tags/v$v" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create the release
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.v.outputs.tag }}" --repo "${{ github.repository }}" \
+            --target "$SHA" --prerelease --title "${{ steps.v.outputs.tag }}" --generate-notes
+      - name: Build and attach binaries
+        if: steps.v.outputs.exists == 'false'
+        run: gh workflow run release.yml --repo "${{ github.repository }}" -f tag="${{ steps.v.outputs.tag }}"
