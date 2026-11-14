@@ -105,7 +105,7 @@ argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
 | `t` / `T` | Open the Teams view (`Enter` filters all views to that team) / cycle the team filter |
 | `s` | Filter all views to one host (cycles); on Fleet, `↑↓` + `Enter` picks a host |
 | `f` / `H` | Show finished agents in the views / open History (finished agents are hidden by default) |
-| `←→` `Enter` (Teams) | Pick a team card and open it; `esc` on the Overview returns to all teams |
+| `↑↓` `Enter` (Teams) | Pick a team and open it; `esc` on the Overview returns to all teams |
 | `g` | Group Graph and Room by team instead of host |
 | `a` / `r` | Approve / reject the pending permission request |
 | `:` | Command bar: `connect user@host`, `msg <text>`, `run <dir> <prompt>`, `view <name>`, `lang tr` |

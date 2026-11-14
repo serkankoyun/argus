@@ -47,9 +47,9 @@ Screenshot docs/media/taskmap-tr.png
 Type "0"
 Sleep 4s
 Screenshot docs/media/pair-tr.png
-Type "T"
+Type "t"
 Sleep 2s
-Right
+Down
 Sleep 2s
 Screenshot docs/media/teams-tr.png
 Enter
