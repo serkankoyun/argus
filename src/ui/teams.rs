@@ -183,14 +183,18 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
         ));
     }
     let title = format!("{}  · {}", team, hosts.join(", "));
-    let block = pane(title, selected).title_bottom(Line::styled(
-        if selected {
-            format!(" {} ", i.t("teams-filtered"))
-        } else {
-            String::new()
-        },
-        Style::new().fg(ACCENT),
-    ));
+    let hint = if cursor {
+        format!(" ⏎ {} ", i.t("teams-open"))
+    } else if selected {
+        format!(" {} ", i.t("teams-filtered"))
+    } else {
+        String::new()
+    };
+    let mut block =
+        pane(title, selected || cursor).title_bottom(Line::styled(hint, Style::new().fg(ACCENT)));
+    if cursor {
+        block = block.border_type(ratatui::widgets::BorderType::Thick);
+    }
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
