@@ -334,6 +334,10 @@ meanwhile press `f` to show them, or `H` to see what Argus considered finished. 
 subagents ("Async agent launched successfully") were also marked finished the moment they
 started. v0.1.6 says when sessions are hidden instead of "No recent Claude Code sessions".
 
+**`T` (or `H`) acts like `t` on Windows** — Some terminals send Shift+letter as the lowercase
+letter plus Shift, so `T` cycled the team filter instead of opening Teams. Fixed in v0.1.6;
+`F11` (Teams), `F12` (History) or a mouse click on the tab work in any version.
+
 **Messages stay "working · 2h" in Open requests** — Plain messages have no reply marker.
 Since v0.1.6 a message counts as answered when the recipient writes back, when Agent Teams
 marks it read, or when the sender sends a newer one; unanswered messages leave the list

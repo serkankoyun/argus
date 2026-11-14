@@ -285,8 +285,18 @@ impl App {
         self.view = View::Overview;
     }
 
+    /// Everything on the chosen host (all hosts when none is chosen), whatever
+    /// the team filter: what the Teams view shows.
+    pub fn host_scope(&self) -> Snapshot {
+        match &self.host {
+            Some(h) => self.full.scoped(None, Some(h)),
+            None => self.full.clone(),
+        }
+    }
+
     fn on_teams_key(&mut self, key: KeyEvent) -> bool {
-        let n = self.full.teams().len();
+        let teams = self.host_scope().teams();
+        let n = teams.len();
         if n == 0 {
             return false;
         }
@@ -298,7 +308,7 @@ impl App {
                 self.team_cursor = (self.team_cursor + n - 1) % n;
             }
             KeyCode::Enter => {
-                let team = self.full.teams()[self.team_cursor.min(n - 1)].clone();
+                let team = teams[self.team_cursor.min(n - 1)].clone();
                 self.open_team(team);
             }
             _ => return false,
@@ -472,6 +482,13 @@ impl App {
     pub fn on_key(&mut self, key: KeyEvent) {
         if self.debug_keys {
             self.last_key = format!("{:?} {:?} {:?}", key.code, key.modifiers, key.kind);
+        }
+        // Some Windows terminals report Shift+t as `t` + SHIFT instead of `T`.
+        let mut key = key;
+        if let KeyCode::Char(c) = key.code {
+            if key.modifiers.contains(KeyModifiers::SHIFT) && c.is_lowercase() {
+                key.code = KeyCode::Char(c.to_uppercase().next().unwrap_or(c));
+            }
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;

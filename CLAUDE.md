@@ -43,7 +43,8 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
   (▰ ▱ ⏎) can be drawn two cells wide and shift ratatui's diffed output ("fields being erased").
   Use narrow glyphs (► ◄ █ ░, text like `enter`) and keep `terminal.clear()` on view changes.
 - **Windows key events**: crossterm reports press *and* release; act on everything except
-  `KeyEventKind::Release`. Offer alternatives (F-keys, mouse) and `--debug-keys` for diagnosis.
+  `KeyEventKind::Release`. Some terminals report Shift+letter as the lowercase letter with
+  `SHIFT` (`T` cycled teams like `t`); `App::on_key` normalizes that. Offer alternatives (F-keys, mouse) and `--debug-keys` for diagnosis.
 - **Never write outside the buffer**: custom-drawn views must use `put`/`putn` from
   `src/ui/common.rs`, never `Buffer::set_string` directly — ratatui panics on out-of-bounds
   writes, and real data (dozens of sessions) overflows layouts that the demo never fills.

@@ -19,7 +19,8 @@ fn team_of(s: &Snapshot, id: &str) -> Option<String> {
 }
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
-    let s = &app.full;
+    let scope = app.host_scope();
+    let s = &scope;
     let teams = s.teams();
     let cross_h = 9;
     let [cards, cross] =
@@ -60,7 +61,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool) {
-    let s = &app.full;
+    let scope = app.host_scope();
+    let s = &scope;
     let i = &app.i18n;
     let members: Vec<_> = s.agents.iter().filter(|a| a.team_key() == team).collect();
     let count = |st: AgentState| members.iter().filter(|a| a.state == st).count();
@@ -199,7 +201,8 @@ fn draw_card(frame: &mut Frame, area: Rect, app: &App, team: &str, cursor: bool)
 }
 
 fn draw_cross(frame: &mut Frame, area: Rect, app: &App) {
-    let s = &app.full;
+    let scope = app.host_scope();
+    let s = &scope;
     let i = &app.i18n;
     let mut pairs: HashMap<(String, String), (usize, String, MsgKind, i64)> = HashMap::new();
     for m in &s.messages {
