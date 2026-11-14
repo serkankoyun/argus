@@ -231,6 +231,27 @@ For remote machines, run `argus hook --install` **on that machine** (the collect
 installed is at `~/.cache/argus/argus`: `~/.cache/argus/argus hook --install`); events and
 approvals then reach your local Argus over SSH.
 
+### Grouping agents into your own teams
+
+Argus groups agents by Agent Teams team when you use that feature, by a `team` reported in
+events ([EVENTS.md](EVENTS.md)), and otherwise by project folder. If your orchestrator encodes
+the team in agent names (for example `qa-payments-review`), describe it in
+`~/.claude/argus/teams.json` **on the machine that runs the agents**:
+
+```json
+{
+  "strip": ["developer-", "tester-", "qa-"],
+  "teams": ["payments", "search-api"],
+  "teams_file": "/path/to/ownership/teams.json",
+  "default": "no-team"
+}
+```
+
+The first matching `strip` prefix is removed from the name, then the longest matching team
+code wins. `teams_file` (optional) adds codes from a JSON file: a list of strings, or objects
+with `code`, at the top level or under `teams`. Agents matching no code get `default`.
+Changes are picked up within a second; no restart needed.
+
 ## 4. Watching remote machines over SSH (optional)
 
 Argus reuses your own `ssh`, so everything in `~/.ssh/config` works (aliases, keys,

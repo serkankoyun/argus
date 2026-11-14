@@ -31,6 +31,9 @@ writes `events-YYYY-MM-DD.jsonl` and deletes its own files after 3 days.
 | `agentId` | no | Subagent id (the `agent-<id>.jsonl` file of that session) |
 | `tool` | no | Tool name for tool events |
 | `status` | no | For `Notification`: `idle_prompt`, `permission_prompt`, … |
+| `team` | no | Team of the agent that wrote the event (or of the spawned subagent) |
+| `agentName` | no | Display name of that agent |
+| `spawnedAgentId` | no | On the event of a tool that started a subagent: that subagent's id; `agentName` and `team` then describe it |
 | `mode` | no | Permission mode; `auto`, `bypassPermissions` and `dontAsk` mean the session never waits for approvals |
 
 Unknown fields are ignored. `session_id`, `agent_id`, `tool_name`, `hook_event_name` and

@@ -79,6 +79,6 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 ## Layout
 - `src/source/` — data sources: `claude.rs` (live `~/.claude` collector), `demo.rs`
   (scripted simulation), `system.rs` (host metrics, running `claude` processes), `pricing.rs`,
-  `events.rs` (lifecycle events), `hook.rs` (`argus hook`)
+  `events.rs` (lifecycle events), `hook.rs` (`argus hook`), `groups.rs` (team rules)
 - `src/model.rs` — `Snapshot`, `Agent`, `Message`, `ToolCall`, `Task`, `Host`, `Metrics`
 - `src/app.rs` — state, views, keys; `src/ui/` — one module per view

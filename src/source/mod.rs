@@ -6,6 +6,7 @@ pub mod actions;
 pub mod claude;
 pub mod demo;
 pub mod events;
+pub mod groups;
 pub mod hook;
 pub mod multi;
 pub mod pricing;

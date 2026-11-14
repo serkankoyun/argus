@@ -61,6 +61,11 @@ pub struct Event {
     pub status: String,
     /// Permission mode, when the writer reports it.
     pub mode: String,
+    /// On a spawn event: the id of the subagent it started.
+    pub spawned: String,
+    /// Display name of the agent (or of the spawned subagent).
+    pub agent_name: String,
+    pub team: String,
 }
 
 /// Permission modes in which Claude Code never shows a permission prompt.
@@ -98,6 +103,9 @@ pub fn parse(line: &str) -> Option<Event> {
         tool: text(&v, &["tool", "tool_name"]),
         status: text(&v, &["status", "notification_type"]),
         mode: text(&v, &["mode", "permission_mode", "permissionMode"]),
+        spawned: text(&v, &["spawnedAgentId", "spawned_agent_id"]),
+        agent_name: text(&v, &["agentName", "agent_name"]),
+        team: text(&v, &["team", "teamName"]),
     })
 }
 
@@ -164,6 +172,8 @@ pub struct EventLog {
     dirs: Vec<PathBuf>,
     offsets: HashMap<PathBuf, (u64, Vec<u8>)>,
     pub sessions: HashMap<String, Live>,
+    /// Agent id -> (name, team) reported by events.
+    pub identities: HashMap<String, (String, String)>,
 }
 
 impl EventLog {
@@ -177,6 +187,36 @@ impl EventLog {
     /// Session events go to the session; events carrying `agentId` come from a
     /// subagent of that session and go to `<sid>/<agentId>`, the subagent's id.
     pub fn record(&mut self, e: &Event) {
+        // Names and teams: a spawn event describes the subagent it started,
+        // any other event the agent that wrote it.
+        let who = if !e.spawned.is_empty() {
+            Some(format!("{}/{}", e.sid, e.spawned))
+        } else if !e.team.is_empty() {
+            Some(if e.agent_id.is_empty() {
+                e.sid.clone()
+            } else {
+                format!("{}/{}", e.sid, e.agent_id)
+            })
+        } else {
+            None
+        };
+        if let Some(id) = who {
+            let slot = self.identities.entry(id).or_default();
+            if !e.agent_name.is_empty() {
+                slot.0 = e.agent_name.clone();
+            }
+            if !e.team.is_empty() {
+                slot.1 = e.team.clone();
+            }
+        }
+        if !e.spawned.is_empty() {
+            // The spawn itself is a tool event of the spawning session.
+            let parent = Event {
+                spawned: String::new(),
+                ..e.clone()
+            };
+            return self.record(&parent);
+        }
         if e.agent_id.is_empty() {
             self.sessions.entry(e.sid.clone()).or_default().apply(e);
             return;
@@ -233,6 +273,14 @@ impl EventLog {
     pub fn apply(&self, snap: &mut Snapshot, now: Millis) {
         let mut approved = HashSet::new();
         for a in &mut snap.agents {
+            if let Some((name, team)) = self.identities.get(&a.id) {
+                if !name.is_empty() {
+                    a.name = name.clone();
+                }
+                if !team.is_empty() {
+                    a.team = Some(team.clone());
+                }
+            }
             let (root, sub) = match a.id.split_once('/') {
                 Some((r, s)) => (r, Some(s)),
                 None => (a.id.as_str(), None),
@@ -391,6 +439,19 @@ mod tests {
         assert_eq!((e.ts, e.event.as_str()), (5, "Stop"));
         assert!(parse(r#"{"ts":5,"event":"Stop"}"#).is_none());
         assert!(parse("not json").is_none());
+    }
+
+    #[test]
+    fn spawn_events_name_subagents() {
+        let mut log = EventLog::default();
+        log.record(&parse(r#"{"ts":5,"event":"PostToolUse","sid":"s","tool":"Agent","spawnedAgentId":"a1","agentName":"qa-provizyon-x"}"#).unwrap());
+        log.record(
+            &parse(r#"{"ts":6,"event":"PostToolUse","sid":"s","agentId":"a2","team":"kurum-agi"}"#)
+                .unwrap(),
+        );
+        assert_eq!(log.identities["s/a1"].0, "qa-provizyon-x");
+        assert_eq!(log.identities["s/a2"].1, "kurum-agi");
+        assert!(log.sessions.contains_key("s"));
     }
 
     #[test]

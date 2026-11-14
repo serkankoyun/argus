@@ -123,6 +123,9 @@ impl Source for ClaudeSource {
         apply_requests(&mut snap, &hook::pending(&self.root));
         self.events.poll();
         self.events.apply(&mut snap, now);
+        if let Some(rules) = super::groups::Rules::load(&self.root) {
+            rules.apply(&mut snap);
+        }
         self.host_name = host.name.clone();
         snap.tasks = read_tasks(&self.root);
         snap.hosts = vec![Host {
