@@ -1,0 +1,3 @@
+{"type": "user", "cwd": "/home/me/shop", "timestamp": "2026-11-14T06:00:03Z", "message": {"role": "user", "content": "Is users.email unique? Check the migrations."}}
+{"type": "assistant", "timestamp": "2026-11-14T06:00:05Z", "message": {"role": "assistant", "model": "claude-haiku-5-5", "usage": {"input_tokens": 40, "output_tokens": 20}, "content": [{"type": "tool_use", "id": "r1", "name": "Read", "input": {"file_path": "db/migrations/0042.sql"}}]}}
+{"type": "user", "timestamp": "2026-11-14T06:00:06Z", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "r1", "content": "CREATE UNIQUE INDEX ..."}]}}

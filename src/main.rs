@@ -55,6 +55,12 @@ struct Cli {
 enum Cmd {
     /// Stream this machine's snapshots as JSON lines (used over SSH by `--host`).
     Collect,
+    /// Print one snapshot as JSON and exit (for scripts and tests).
+    Snapshot {
+        /// Seconds to keep polling before printing (lets remote hosts connect).
+        #[arg(long, default_value_t = 2)]
+        wait: u64,
+    },
 }
 
 const FRAME: Duration = Duration::from_millis(50);
@@ -86,6 +92,9 @@ fn main() -> Result<()> {
             Box::new(MultiSource::new(sources))
         }
     };
+    if let Some(Cmd::Snapshot { wait }) = cli.command {
+        return print_snapshot(source, wait);
+    }
     let rx = source::spawn(source, POLL);
     let mut app = App::new(i18n, rx, cli.demo);
 
@@ -93,6 +102,18 @@ fn main() -> Result<()> {
     let result = run(&mut terminal, &mut app);
     ratatui::restore();
     result
+}
+
+fn print_snapshot(mut source: Box<dyn Source>, wait: u64) -> Result<()> {
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    let mut snap = source.poll();
+    while Instant::now() < deadline {
+        std::thread::sleep(POLL);
+        snap = source.poll();
+    }
+    serde_json::to_writer_pretty(std::io::stdout(), &snap)?;
+    println!();
+    Ok(())
 }
 
 fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {

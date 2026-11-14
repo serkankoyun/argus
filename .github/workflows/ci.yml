@@ -30,3 +30,39 @@ jobs:
         run: cargo test --all-targets
       - name: Build release
         run: cargo build --release
+
+  e2e:
+    name: end-to-end (collector + SSH)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - name: Local collector reads fixture transcripts
+        run: |
+          ./target/release/argus --claude-dir tests/fixtures/claude snapshot --wait 0 > snap.json
+          jq -e '.agents | length == 2' snap.json
+          jq -e '[.agents[] | select(.name == "db-dev")] | length == 1' snap.json
+          jq -e '[.messages[] | select(.kind == "Task")] | length == 1' snap.json
+      - name: collect streams JSON frames
+        run: |
+          timeout 4 ./target/release/argus --claude-dir tests/fixtures/claude collect > frames.jsonl || true
+          head -1 frames.jsonl | jq -e '.v == 1 and (.snapshot.agents | length == 2)'
+      - name: Set up SSH to localhost
+        run: |
+          sudo apt-get install -y openssh-server
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519 -q
+          cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+          sudo systemctl start ssh
+          ssh -o StrictHostKeyChecking=accept-new localhost true
+          mkdir -p ~/.claude && cp -r tests/fixtures/claude/projects ~/.claude/
+      - name: Remote host over SSH (auto-installs argus)
+        run: |
+          ./target/release/argus --host localhost --no-local snapshot --wait 20 > remote.json
+          jq '.hosts' remote.json
+          jq -e '.hosts[0].connected == true' remote.json
+          jq -e '.agents | length == 2' remote.json
+          test -x ~/.cache/argus/argus
