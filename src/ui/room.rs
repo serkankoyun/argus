@@ -137,12 +137,11 @@ fn draw_card(buf: &mut Buffer, r: Rect, n: &Node, app: &App) {
 }
 
 fn draw_bubble(buf: &mut Buffer, area: Rect, n: &Node, m: &Message, app: &App) {
-    let s = &app.snapshot;
     let c = kind_color(m.kind);
     let text = format!(
         " {} {}: {} ",
         m.kind.glyph(),
-        s.name_of(&m.to),
+        name(app, &m.to).as_str(),
         trunc(&m.label, 40)
     );
     let w = text.chars().count() as u16;
@@ -185,7 +184,6 @@ pub fn open_requests(app: &App) -> Vec<&Message> {
 }
 
 fn draw_requests(frame: &mut Frame, area: Rect, app: &App) {
-    let s = &app.snapshot;
     let i = &app.i18n;
     let mut lines = Vec::new();
     for m in open_requests(app)
@@ -235,10 +233,10 @@ fn draw_requests(frame: &mut Frame, area: Rect, app: &App) {
         lines.push(
             Line::from(vec![
                 Span::styled(format!("{} ", m.kind.glyph()), Style::new().fg(c)),
-                Span::styled(trunc(s.name_of(&m.from), 12), bold().fg(FG)),
+                Span::styled(trunc(name(app, &m.from).as_str(), 12), bold().fg(FG)),
                 Span::styled(" → ", Style::new().fg(DIM)),
                 Span::styled(
-                    format!("{:<14}", trunc(s.name_of(&m.to), 12)),
+                    format!("{:<14}", trunc(name(app, &m.to).as_str(), 12)),
                     bold().fg(FG),
                 ),
                 Span::styled(status, Style::new().fg(sc)),
@@ -261,7 +259,6 @@ fn draw_requests(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_conversations(frame: &mut Frame, area: Rect, app: &App) {
-    let s = &app.snapshot;
     let rows = area.height.saturating_sub(2) as usize;
     let lines: Vec<Line> = s
         .messages
@@ -273,12 +270,12 @@ fn draw_conversations(frame: &mut Frame, area: Rect, app: &App) {
             let mut l = Line::from(vec![
                 Span::styled(format!("{} ", clock(m.ts)), Style::new().fg(DIM)),
                 Span::styled(
-                    format!("{:>12}", trunc(s.name_of(&m.from), 12)),
+                    format!("{:>12}", trunc(name(app, &m.from).as_str(), 12)),
                     Style::new().fg(PURPLE),
                 ),
                 Span::styled(" → ", Style::new().fg(DIM)),
                 Span::styled(
-                    format!("{:<12} ", trunc(s.name_of(&m.to), 12)),
+                    format!("{:<12} ", trunc(name(app, &m.to).as_str(), 12)),
                     Style::new().fg(if m.to == YOU { AMBER } else { PURPLE }),
                 ),
                 Span::styled(

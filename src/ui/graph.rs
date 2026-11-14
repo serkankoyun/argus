@@ -286,8 +286,8 @@ fn draw_traffic(frame: &mut Frame, area: Rect, app: &App) {
         .map(|((a, b), n, kind)| {
             let label = format!(
                 "{} ↔ {}",
-                trunc(s.name_of(&a), 11),
-                trunc(s.name_of(&b), 11)
+                trunc(name(app, &a).as_str(), 11),
+                trunc(name(app, &b).as_str(), 11)
             );
             Line::from(vec![
                 Span::raw(format!("{label:<25}")),
@@ -314,7 +314,7 @@ fn draw_ticker(frame: &mut Frame, area: Rect, app: &App) {
         .rev()
         .take(rows)
         .enumerate()
-        .map(|(i, m)| ticker_line(s, m, i == 0))
+        .map(|(i, m)| ticker_line(app, m, i == 0))
         .collect();
     frame.render_widget(
         Paragraph::new(lines).block(pane(app.i18n.t("pane-now"), false)),
@@ -322,15 +322,15 @@ fn draw_ticker(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn ticker_line<'a>(s: &Snapshot, m: &Message, first: bool) -> Line<'a> {
+fn ticker_line<'a>(app: &App, m: &Message, first: bool) -> Line<'a> {
     let c = kind_color(m.kind);
     let mut line = Line::from(vec![
         Span::styled(format!("{} ", clock(m.ts)), Style::new().fg(DIM)),
         Span::styled(format!("{} ", m.kind.glyph()), Style::new().fg(c)),
         Span::raw(format!(
             "{}→{} ",
-            trunc(s.name_of(&m.from), 9),
-            trunc(s.name_of(&m.to), 9)
+            trunc(name(app, &m.from).as_str(), 9),
+            trunc(name(app, &m.to).as_str(), 9)
         )),
         Span::styled(trunc(&m.label, 30), Style::new().fg(FG)),
     ]);

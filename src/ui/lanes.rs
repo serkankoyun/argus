@@ -214,8 +214,10 @@ fn draw_lanes(buf: &mut Buffer, area: Rect, app: &App, window: Millis) {
             trunc(&format!("{} {}", t.tool, t.target), w as usize),
             w = w as usize
         );
-        buf.set_stringn(x0, y + 1, &text, w as usize, style);
         buf.set_string(x0, y + 1, "▏", Style::new().fg(c).bg(darken(c)));
+        if w > 1 {
+            buf.set_stringn(x0 + 1, y + 1, &text, w as usize - 1, style);
+        }
     }
 
     // Messages as vertical arrows between lanes.
@@ -271,18 +273,10 @@ fn waiting_for(app: &App, a: &Agent) -> (String, String, Color) {
         .find(|m| m.from == a.id)
     {
         let c = if m.to == YOU { AMBER } else { DIM };
-        return (
-            app.i18n.t("lanes-waiting-for"),
-            s.name_of(&m.to).to_string(),
-            c,
-        );
+        return (app.i18n.t("lanes-waiting-for"), name(app, &m.to), c);
     }
     if let Some(m) = s.messages.iter().rev().filter(open).find(|m| m.to == a.id) {
-        return (
-            app.i18n.t("lanes-asked-by"),
-            s.name_of(&m.from).to_string(),
-            DIM,
-        );
+        return (app.i18n.t("lanes-asked-by"), name(app, &m.from), DIM);
     }
     (String::new(), String::new(), DIM)
 }
@@ -316,13 +310,13 @@ fn draw_matrix(frame: &mut Frame, area: Rect, app: &App) {
     ))];
     header.extend(receivers.iter().map(|r| {
         Cell::from(Span::styled(
-            trunc(s.name_of(r), 20),
+            trunc(name(app, r).as_str(), 20),
             bold().fg(if *r == YOU { AMBER } else { FG }),
         ))
     }));
     let rows = senders.iter().map(|from| {
         let mut row = vec![Cell::from(Span::styled(
-            trunc(s.name_of(from), 14),
+            trunc(name(app, from).as_str(), 14),
             bold().fg(PURPLE),
         ))];
         for to in &receivers {

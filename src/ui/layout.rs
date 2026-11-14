@@ -1,7 +1,5 @@
 //! Node placement shared by the graph-style views (Graph, Room).
 
-use std::collections::BTreeMap;
-
 use ratatui::layout::Rect;
 
 use crate::model::{Snapshot, YOU};
@@ -30,19 +28,21 @@ pub fn place(
     node_h: u16,
     with_you: bool,
 ) -> (Vec<Node>, Vec<Group>) {
-    let mut hosts: BTreeMap<String, Vec<(usize, usize)>> = BTreeMap::new();
+    // Hosts in order of first appearance (agents are sorted by activity).
+    let mut hosts: Vec<(String, Vec<(usize, usize)>)> = Vec::new();
     for (idx, depth) in s.tree_order() {
-        hosts
-            .entry(s.agents[idx].host.clone())
-            .or_default()
-            .push((idx, depth));
+        let host = &s.agents[idx].host;
+        match hosts.iter_mut().find(|(h, _)| h == host) {
+            Some((_, v)) => v.push((idx, depth)),
+            None => hosts.push((host.clone(), vec![(idx, depth)])),
+        }
     }
     let mut nodes = Vec::new();
     let mut groups = Vec::new();
     if hosts.is_empty() {
         return (nodes, groups);
     }
-    let reserve = if with_you { node_h + 2 } else { 0 };
+    let reserve = if with_you { node_h + 1 } else { 0 };
     let bands = hosts.len() as u16;
     let band_w = area.width / bands.max(1);
     for (bi, (host, members)) in hosts.into_iter().enumerate() {
@@ -54,23 +54,32 @@ pub fn place(
             height: area.height.saturating_sub(reserve),
         };
         groups.push(Group { host, area: band });
+        // Split each depth level into rows of as many nodes as fit.
+        let per_row = ((band.width.saturating_sub(2)) / (node_w + 1)).max(1) as usize;
         let max_depth = members.iter().map(|m| m.1).max().unwrap_or(0);
-        let rows = (max_depth + 1) as u16;
-        let row_h = band.height.saturating_sub(2) / rows.max(1);
+        let mut rows: Vec<Vec<usize>> = Vec::new();
         for depth in 0..=max_depth {
-            let row: Vec<usize> = members
+            let level: Vec<usize> = members
                 .iter()
                 .filter(|m| m.1 == depth)
                 .map(|m| m.0)
                 .collect();
-            let n = row.len() as u16;
-            let y = band.y + 1 + row_h * depth as u16 + row_h / 2;
+            for chunk in level.chunks(per_row) {
+                rows.push(chunk.to_vec());
+            }
+        }
+        let n_rows = rows.len().max(1) as u16;
+        let row_h = (band.height.saturating_sub(2) / n_rows).max(node_h);
+        for (ri, row) in rows.into_iter().enumerate() {
+            let y = band.y + 1 + row_h * ri as u16 + row_h / 2;
+            let slot = band.width / row.len().max(1) as u16;
             for (k, idx) in row.into_iter().enumerate() {
-                let slot = band.width / n.max(1);
                 let x = band.x + slot * k as u16 + slot / 2;
                 let x = x.clamp(
                     band.x + node_w / 2 + 1,
-                    (band.x + band.width).saturating_sub(node_w / 2 + 1),
+                    (band.x + band.width)
+                        .saturating_sub(node_w / 2 + 1)
+                        .max(band.x + node_w / 2 + 1),
                 );
                 nodes.push(Node {
                     id: s.agents[idx].id.clone(),

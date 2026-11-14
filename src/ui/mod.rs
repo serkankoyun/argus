@@ -1,5 +1,6 @@
 //! Rendering. Every view shares the header, the view bar and the key hints.
 
+mod agent;
 mod common;
 mod graph;
 mod lanes;
@@ -30,6 +31,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     draw_tabs(frame, tabs, app);
     match app.view {
         View::Overview => overview::draw(frame, body, app),
+        View::AgentDetail => agent::draw(frame, body, app),
         View::Graph => graph::draw(frame, body, app),
         View::Room => room::draw(frame, body, app),
         View::Lanes => lanes::draw(frame, body, app),

@@ -148,6 +148,15 @@ pub fn sparkline(series: &Series, width: usize) -> String {
     s
 }
 
+/// Display name for an agent id; the human operator is localized.
+pub fn name(app: &App, id: &str) -> String {
+    if id == crate::model::YOU {
+        app.i18n.t("you")
+    } else {
+        app.snapshot.name_of(id).to_string()
+    }
+}
+
 /// What the agent is doing right now, localized.
 pub fn now_text(app: &App, a: &Agent) -> String {
     let i = &app.i18n;

@@ -147,7 +147,6 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
-    let s = &app.snapshot;
     let visible = area.height.saturating_sub(2) as usize;
     let mut lines: Vec<Line> = s
         .messages
@@ -159,7 +158,7 @@ fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
             Line::from(vec![
                 Span::styled(format!("{} ", clock(m.ts)), Style::new().fg(DIM)),
                 Span::styled(
-                    format!("{:>12}", trunc(s.name_of(&m.from), 12)),
+                    format!("{:>12}", trunc(name(app, &m.from).as_str(), 12)),
                     Style::new().fg(PURPLE),
                 ),
                 Span::styled(" ──", Style::new().fg(DIM)),
@@ -167,7 +166,7 @@ fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
                 Span::styled(trunc(&m.label, 44), Style::new().fg(FG)),
                 Span::styled(" ──▶ ", Style::new().fg(DIM)),
                 Span::styled(
-                    trunc(s.name_of(&m.to), 14),
+                    trunc(name(app, &m.to).as_str(), 14),
                     Style::new().fg(if m.to == crate::model::YOU {
                         AMBER
                     } else {
@@ -264,7 +263,7 @@ fn draw_events(frame: &mut Frame, area: Rect, app: &App) {
                 Span::styled(format!("{} ", clock(t.ts)), Style::new().fg(DIM)),
                 Span::styled(format!("{:<8}", trunc(host, 8)), Style::new().fg(CYAN)),
                 Span::styled(
-                    format!("{:<14}", trunc(s.name_of(&t.agent), 13)),
+                    format!("{:<14}", trunc(name(app, &t.agent).as_str(), 13)),
                     Style::new().fg(PURPLE),
                 ),
                 Span::styled(format!("{mark} "), Style::new().fg(color)),

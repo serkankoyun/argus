@@ -27,6 +27,12 @@ Type "7"
 Sleep 5s
 Screenshot docs/media/lanes-tr.png
 Type "1"
+Sleep 1s
+Down
+Type "3"
+Sleep 3s
+Screenshot docs/media/agent-tr.png
+Type "1"
 Sleep 2s
 Hide
 Type "q"
