@@ -15,11 +15,12 @@ pub fn now_millis() -> Millis {
         .unwrap_or(0)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum AgentState {
     Working,
     Waiting,
     Done,
+    #[default]
     Idle,
     Stalled,
 }
@@ -87,7 +88,7 @@ pub struct ToolCall {
     pub ok: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Agent {
     /// Unique id: the session id, or `session/agent-id` for subagents.
     pub id: String,
@@ -146,11 +147,12 @@ impl Agent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum MsgKind {
     /// A task handed to another agent.
     Task,
     /// A plain message or question.
+    #[default]
     Msg,
     /// A result / completion report.
     Result,
@@ -185,7 +187,7 @@ impl MsgKind {
 /// Id used for the human operator in messages.
 pub const YOU: &str = "@you";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
     pub ts: Millis,
     pub from: String,

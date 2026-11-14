@@ -62,7 +62,7 @@ Inside Argus: `1`–`0` (or `F1`–`F10`, or a mouse click on the tabs) switch s
 Optional:
 
 ```sh
-argus hook --install           # approve Claude Code permission requests from Argus (a / r)
+argus hook --install           # exact agent states + approve permission requests from Argus (a / r)
 argus --host user@server       # also watch a remote machine over SSH (any OS combination)
 argus --host user@server --no-local   # only the remote machine
 ```

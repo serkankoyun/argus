@@ -200,16 +200,21 @@ argus --claude-dir /path/.claude   # another Claude config directory
 argus snapshot --wait 2            # print one snapshot as JSON (for scripts)
 ```
 
-## 3. Approving tool calls from Argus (optional)
-
-Claude Code can ask Argus before showing its permission prompt:
+## 3. Hooks: exact states and approvals from Argus (optional, recommended)
 
 ```sh
 argus hook --install
 ```
 
-This adds a `PermissionRequest` hook to `~/.claude/settings.json` (a backup is written to
-`settings.json.bak`). Restart running Claude Code sessions so they pick it up.
+This adds two kinds of hooks to `~/.claude/settings.json` (a backup is written to
+`settings.json.bak`). Restart running Claude Code sessions so they pick them up.
+
+- **Lifecycle events** (`argus hook --event`): Claude Code reports every tool start and
+  end, every finished turn and every "waiting for your input". Without them Argus guesses
+  from transcripts, which stay silent during long commands, so a long `Bash` run can look
+  like a pending approval. The events are small lines in `~/.claude/argus/events/`, kept 3
+  days. Other tools can write the same format: see [EVENTS.md](EVENTS.md).
+- **Approvals** (`argus hook`, a `PermissionRequest` hook), described below.
 
 When an agent needs permission, Argus shows it in the header, the Room view and the Channel
 view. Press `a` to approve or `r` to reject. If nobody answers within 120 seconds, Claude
@@ -219,11 +224,12 @@ Code shows its normal prompt. Change the wait with:
 argus hook --install --wait 300
 ```
 
-To remove the hook, delete the `PermissionRequest` entry whose command ends in `hook` from
+To remove the hooks, delete the entries whose command contains `argus` … `hook` from
 `~/.claude/settings.json`, or restore `settings.json.bak`.
 
-For remote machines, run `argus hook --install` **on that machine**; approvals made in
-your local Argus are delivered over SSH.
+For remote machines, run `argus hook --install` **on that machine** (the collector Argus
+installed is at `~/.cache/argus/argus`: `~/.cache/argus/argus hook --install`); events and
+approvals then reach your local Argus over SSH.
 
 ## 4. Watching remote machines over SSH (optional)
 
@@ -327,6 +333,7 @@ collector could miss newer Claude Code data. Update Argus locally; from v0.1.4 t
 is replaced automatically when its version differs. To check what the server sees, run on the
 server: `~/.cache/argus/argus snapshot | head -c 2000`. If that shows no agents, the agents run
 as another user or with another config folder (`CLAUDE_CONFIG_DIR`): connect as that user.
+If it shows the agents but their state lags, install the hooks on the server (section 3).
 
 **Parts of the screen disappear or shift when switching views (Windows)** — Some fonts draw
 certain symbols two cells wide. Since v0.1.1 Argus avoids those symbols and repaints the whole
@@ -387,9 +394,11 @@ to the host (Overview) and in the Fleet view's alerts (`4`).
 **Costs look different from my bill** — Costs are estimates from public per-token prices;
 subscriptions and discounts are not known to Argus.
 
-**An agent shows "waiting for approval" but nothing is pending** — Without the hook,
-Argus infers waiting from a tool call that has made no progress for 20 seconds. Install
-the hook (section 3) for exact approval tracking.
+**An agent shows "waiting for approval" but nothing is pending, or "working" while it
+waits for you** — Without the hooks, Argus infers states from transcripts, which Claude
+Code writes only when a step finishes: a long command looks like a pending approval. Install
+the hooks (section 3) on every machine that runs agents. Long commands also show how long
+they have been running, for example `[6m12s] npm test`.
 
 Still stuck? [Open an issue](https://github.com/serkankoyun/argus/issues) with your OS,
 terminal, `argus --version` and, if possible, a screenshot.

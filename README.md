@@ -128,11 +128,13 @@ Nothing listens on a port; the collector stops when you disconnect.
 ## Approving from Argus
 
 ```sh
-argus hook --install    # adds a PermissionRequest hook to ~/.claude/settings.json
+argus hook --install    # adds lifecycle-event and PermissionRequest hooks to ~/.claude/settings.json
 ```
 
 Claude Code then asks Argus first: press `a` or `r`. If nobody answers within
-`--wait` seconds (default 120) the normal permission prompt appears.
+`--wait` seconds (default 120) the normal permission prompt appears. The event hooks tell
+Argus exactly when a tool starts and ends and when a session waits for you; other tools can
+report the same way ([docs/EVENTS.md](docs/EVENTS.md)).
 
 ## Roadmap
 

@@ -58,6 +58,10 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 - **Remote collector versions**: never reuse a remote argus of another version; the probe
   matches `argus <this version>` exactly and otherwise reinstalls. An old cached collector
   silently showed stale or missing data after local updates.
+- **Transcripts lag**: Claude Code writes a transcript line only when a step finishes; a long
+  `Bash` looked like a pending approval and an idle session looked busy. Exact states come
+  from lifecycle events (`src/source/events.rs`, `docs/EVENTS.md`); keep that format open and
+  generic rather than adding code for one orchestrator.
 - **GitHub releases API**: `/releases/latest` ignores pre-releases; use `/releases?per_page=1`.
 - **Release packaging**: build archives in `dist/` and upload `dist/*` only; staging folder names
   contain dots and globbing `argus-*.*` picked them up.
@@ -69,6 +73,7 @@ Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the 
 
 ## Layout
 - `src/source/` — data sources: `claude.rs` (live `~/.claude` collector), `demo.rs`
-  (scripted simulation), `system.rs` (host metrics, running `claude` processes), `pricing.rs`
+  (scripted simulation), `system.rs` (host metrics, running `claude` processes), `pricing.rs`,
+  `events.rs` (lifecycle events), `hook.rs` (`argus hook`)
 - `src/model.rs` — `Snapshot`, `Agent`, `Message`, `ToolCall`, `Task`, `Host`, `Metrics`
 - `src/app.rs` — state, views, keys; `src/ui/` — one module per view

@@ -91,4 +91,11 @@ jobs:
           jq -e '.hookSpecificOutput.hookEventName == "PermissionRequest" and .hookSpecificOutput.decision.behavior == "allow"' hook.out
           ./target/release/argus --claude-dir /tmp/cc hook --install
           ./target/release/argus --claude-dir /tmp/cc hook --install
-          jq -e '.hooks.PermissionRequest | length == 1' /tmp/cc/settings.json
+          jq -e '.hooks.PermissionRequest | length == 2' /tmp/cc/settings.json
+          jq -e '.hooks.Stop | length == 1' /tmp/cc/settings.json
+      - name: Lifecycle event hook
+        run: |
+          echo '{"session_id":"sess-1","hook_event_name":"Notification","notification_type":"idle_prompt"}' \
+            | ./target/release/argus --claude-dir /tmp/cc hook --event
+          cat /tmp/cc/argus/events/events-*.jsonl
+          jq -e 'select(.event == "Notification") | .sid == "sess-1" and .status == "idle_prompt"' /tmp/cc/argus/events/events-*.jsonl

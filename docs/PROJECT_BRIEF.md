@@ -70,6 +70,10 @@ Agent messages and "now" descriptions are shown in the user's language.
 - New work: `> prod-1 ~/repo: update the README` → collector runs `claude -p ... --output-format stream-json`
 - Instructions to a running agent: via `--resume` / Agent SDK if Argus started it; tmux or the teams inbox otherwise (fragile)
 - Approvals: routed to the TUI via hooks / `--permission-prompt-tool`; `a` approve, `r` reject
+- Exact states: transcripts are silent during long tool calls, so `argus hook --install` also
+  records lifecycle events in an open JSONL format (`docs/EVENTS.md`). Other orchestrators
+  report through the same format (`ARGUS_EVENTS`); agent-orchestra's log is read as is.
+  No orchestrator-specific code
 - Recommendation: let Argus launch agents whenever possible
 - Limitation: interactive menu commands (`/config` etc.) are not supported
 
@@ -84,7 +88,7 @@ Agent messages and "now" descriptions are shown in the user's language.
 
 All ten views plus the Teams view are implemented and recorded from the demo in
 `docs/media/`. Live collector, SSH remotes (auto-install, replaced when its version differs), command bar, headless runs,
-`--resume` messages and the PermissionRequest approval hook are done and covered by
+`--resume` messages, the PermissionRequest approval hook and lifecycle events are done and covered by
 end-to-end tests in CI (fixtures, SSH loopback, hook round trip).
 
 v0.1.1 is published (pre-release) with binaries, Homebrew and Scoop packages; it adds

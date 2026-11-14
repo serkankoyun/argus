@@ -115,7 +115,8 @@ pub fn run(root: &Path, wait: Duration) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Adds the hook to `settings.json` (keeping a `.bak` copy).
+/// Adds the approval hook and the lifecycle event hooks (`argus hook --event`)
+/// to `settings.json`, keeping a `.bak` copy. Running it again changes nothing.
 pub fn install(root: &Path, wait_secs: u64) -> anyhow::Result<PathBuf> {
     let path = root.join("settings.json");
     let mut settings: Value = std::fs::read_to_string(&path)
@@ -126,26 +127,39 @@ pub fn install(root: &Path, wait_secs: u64) -> anyhow::Result<PathBuf> {
         std::fs::copy(&path, path.with_extension("json.bak"))?;
     }
     let exe = std::env::current_exe()?.display().to_string();
-    let entry = json!({
-        "matcher": "*",
-        "hooks": [{ "type": "command", "command": format!("\"{exe}\" hook"), "timeout": wait_secs + 10 }]
-    });
     let hooks = settings
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("settings.json is not an object"))?
         .entry("hooks")
-        .or_insert_with(|| json!({}));
-    let list = hooks
+        .or_insert_with(|| json!({}))
         .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("`hooks` is not an object"))?
-        .entry("PermissionRequest")
-        .or_insert_with(|| json!([]));
-    let arr = list
-        .as_array_mut()
-        .ok_or_else(|| anyhow::anyhow!("`PermissionRequest` is not a list"))?;
-    let already = arr.iter().any(|e| e.to_string().contains(" hook\""));
-    if !already {
-        arr.push(entry);
+        .ok_or_else(|| anyhow::anyhow!("`hooks` is not an object"))?;
+    let mut add =
+        |event: &str, command: String, marker: &str, timeout: u64| -> anyhow::Result<()> {
+            let arr = hooks
+                .entry(event)
+                .or_insert_with(|| json!([]))
+                .as_array_mut()
+                .ok_or_else(|| anyhow::anyhow!("`{event}` is not a list"))?;
+            if !arr.iter().any(|e| e.to_string().contains(marker)) {
+                let mut entry = json!({
+                    "hooks": [{ "type": "command", "command": command, "timeout": timeout }]
+                });
+                if matches!(event, "PreToolUse" | "PostToolUse" | "PermissionRequest") {
+                    entry["matcher"] = json!("*");
+                }
+                arr.push(entry);
+            }
+            Ok(())
+        };
+    add(
+        "PermissionRequest",
+        format!("\"{exe}\" hook"),
+        " hook\"",
+        wait_secs + 10,
+    )?;
+    for event in super::events::HOOK_EVENTS {
+        add(*event, format!("\"{exe}\" hook --event"), "hook --event", 5)?;
     }
     std::fs::create_dir_all(root)?;
     std::fs::write(&path, serde_json::to_string_pretty(&settings)?)?;
@@ -187,7 +201,10 @@ mod tests {
         let s: Value =
             serde_json::from_str(&std::fs::read_to_string(root.join("settings.json")).unwrap())
                 .unwrap();
-        assert_eq!(s["hooks"]["PermissionRequest"].as_array().unwrap().len(), 1);
+        // The approval hook and the event hook, once each.
+        assert_eq!(s["hooks"]["PermissionRequest"].as_array().unwrap().len(), 2);
+        assert_eq!(s["hooks"]["Stop"].as_array().unwrap().len(), 1);
+        assert!(s["hooks"]["Stop"][0].get("matcher").is_none());
         let _ = std::fs::remove_dir_all(&root);
     }
 }

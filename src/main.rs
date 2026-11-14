@@ -70,6 +70,9 @@ enum Cmd {
         /// Seconds to wait for a decision before falling back to the normal prompt.
         #[arg(long, default_value_t = 120, env = "ARGUS_HOOK_WAIT")]
         wait: u64,
+        /// Record a lifecycle event (used by the installed hooks) and exit.
+        #[arg(long)]
+        event: bool,
     },
     /// Print one snapshot as JSON and exit (for scripts and tests).
     Snapshot {
@@ -92,17 +95,25 @@ fn main() -> Result<()> {
         Some(Cmd::Collect) => {
             return source::remote::collect(Box::new(ClaudeSource::new(claude_dir)), POLL)
         }
+        Some(Cmd::Hook { event: true, .. }) => {
+            let mut input = String::new();
+            let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut input);
+            source::events::record(&claude_dir, &input);
+            return Ok(());
+        }
         Some(Cmd::Hook {
             install: true,
             wait,
+            ..
         }) => {
             let path = source::hook::install(&claude_dir, wait)?;
-            println!("Argus approval hook added to {}", path.display());
+            println!("Argus approval and event hooks added to {}", path.display());
             return Ok(());
         }
         Some(Cmd::Hook {
             install: false,
             wait,
+            ..
         }) => return source::hook::run(&claude_dir, Duration::from_secs(wait)),
         _ => {}
     }

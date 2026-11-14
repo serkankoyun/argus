@@ -18,7 +18,7 @@ use serde_json::Value;
 
 use super::pricing;
 use super::system::SystemProbe;
-use super::{actions, hook, Control, Notice, Source};
+use super::{actions, events, hook, Control, Notice, Source};
 use crate::model::*;
 
 /// Sessions untouched for longer than this are ignored.
@@ -45,11 +45,13 @@ pub struct ClaudeSource {
     metrics: Metrics,
     last_poll: Option<(Millis, u64, f64)>,
     host_name: String,
+    events: events::EventLog,
 }
 
 impl ClaudeSource {
     pub fn new(root: PathBuf) -> Self {
         Self {
+            events: events::EventLog::new(events::dirs(&root)),
             root,
             files: HashMap::new(),
             probe: SystemProbe::new(),
@@ -118,6 +120,8 @@ impl Source for ClaudeSource {
         merge_teams(&self.root, &mut snap);
         assign_teams(&self.root, &mut snap);
         apply_requests(&mut snap, &hook::pending(&self.root));
+        self.events.poll();
+        self.events.apply(&mut snap, now);
         self.host_name = host.name.clone();
         snap.tasks = read_tasks(&self.root);
         snap.hosts = vec![Host {
@@ -700,6 +704,11 @@ pub fn build_snapshot<'a>(
         let alive = live_cwds.iter().any(|c| Path::new(&s.cwd) == c.as_path());
         let state = infer_state(s, alive, now, &sessions);
         let (tool, target) = match s.pending.values().max_by_key(|p| p.ts) {
+            // Long commands write nothing until they finish: show how long it runs.
+            Some(p) if now - p.ts >= 60_000 => (
+                p.name.clone(),
+                format!("[{}] {}", elapsed(now - p.ts), p.target),
+            ),
             Some(p) => (p.name.clone(), p.target.clone()),
             None => s.last_tool.clone(),
         };
@@ -814,6 +823,16 @@ pub fn build_snapshot<'a>(
     snap.agents
         .sort_by_key(|a| std::cmp::Reverse(a.last_activity));
     snap
+}
+
+/// `6m12s`, `1h05m`.
+fn elapsed(ms: Millis) -> String {
+    let s = ms.max(0) / 1000;
+    if s >= 3600 {
+        format!("{}h{:02}m", s / 3600, s / 60 % 60)
+    } else {
+        format!("{}m{:02}s", s / 60, s % 60)
+    }
 }
 
 fn is_long_running(tool: &str) -> bool {
