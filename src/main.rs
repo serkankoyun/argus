@@ -15,7 +15,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ratatui::crossterm::event::{self, Event, KeyEventKind};
+use ratatui::crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind, MouseButton, MouseEventKind,
+};
+use ratatui::crossterm::execute;
 
 use crate::app::App;
 use crate::i18n::I18n;
@@ -46,6 +49,10 @@ struct Cli {
     /// Do not watch the local machine (only the `--host` machines).
     #[arg(long)]
     no_local: bool,
+
+    /// Show the last key Argus received in the footer (for troubleshooting).
+    #[arg(long)]
+    debug_keys: bool,
 
     #[command(subcommand)]
     command: Option<Cmd>,
@@ -118,9 +125,12 @@ fn main() -> Result<()> {
     }
     let channels = source::spawn(source, POLL);
     let mut app = App::new(i18n, channels, cli.demo);
+    app.debug_keys = cli.debug_keys;
 
     let mut terminal = ratatui::init();
+    let _ = execute!(std::io::stdout(), EnableMouseCapture);
     let result = run(&mut terminal, &mut app);
+    let _ = execute!(std::io::stdout(), DisableMouseCapture);
     ratatui::restore();
     result
 }
@@ -143,10 +153,20 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         terminal.draw(|frame| ui::draw(frame, app))?;
         let timeout = FRAME.saturating_sub(last.elapsed());
         if event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    app.on_key(key);
-                }
+            match event::read()? {
+                // Windows reports both press and release; act on press (and auto-repeat).
+                Event::Key(key) if key.kind != KeyEventKind::Release => app.on_key(key),
+                Event::Mouse(m) => match m.kind {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        if let Some(i) = ui::tab_at(app, m.row, m.column) {
+                            app.set_view_index(i);
+                        }
+                    }
+                    MouseEventKind::ScrollDown => app.scroll(1),
+                    MouseEventKind::ScrollUp => app.scroll(-1),
+                    _ => {}
+                },
+                _ => {}
             }
         }
         if last.elapsed() >= FRAME {

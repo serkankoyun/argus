@@ -124,15 +124,41 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
+/// Tab titles as drawn in the view bar.
+fn tab_titles(app: &App) -> Vec<String> {
+    View::ALL
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            let n = match i {
+                9 => "0".to_string(),
+                10 => "T".to_string(),
+                _ => (i + 1).to_string(),
+            };
+            format!("{n} {}", app.i18n.t(v.key()))
+        })
+        .collect()
+}
+
+/// Which tab is at terminal column `col` of row `row` (the view bar is row 1).
+pub fn tab_at(app: &App, row: u16, col: u16) -> Option<usize> {
+    if row != 1 {
+        return None;
+    }
+    let mut x = 0u16;
+    for (i, t) in tab_titles(app).iter().enumerate() {
+        // Each tab is " title " followed by a one-column divider.
+        let w = Line::raw(t.as_str()).width() as u16 + 2;
+        if col >= x && col < x + w {
+            return Some(i);
+        }
+        x += w + 1;
+    }
+    None
+}
+
 fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
-    let titles = View::ALL.iter().enumerate().map(|(i, v)| {
-        let n = match i {
-            9 => "0".to_string(),
-            10 => "T".to_string(),
-            _ => (i + 1).to_string(),
-        };
-        Line::from(format!("{n} {}", app.i18n.t(v.key())))
-    });
+    let titles = tab_titles(app).into_iter().map(Line::from);
     let tabs = Tabs::new(titles)
         .select(app.view.index())
         .style(Style::new().fg(DIM))
@@ -210,6 +236,17 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
     let [left, right] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(48)]).areas(area);
     frame.render_widget(Paragraph::new(Line::from(spans)), left);
+    if app.debug_keys && !app.last_key.is_empty() {
+        frame.render_widget(
+            Paragraph::new(Line::styled(
+                format!("key: {}", app.last_key),
+                Style::new().fg(CYAN),
+            ))
+            .right_aligned(),
+            right,
+        );
+        return;
+    }
     if let Some((at, n)) = &app.flash {
         if app.now - at < 5_000 {
             let (text, color) = match n {

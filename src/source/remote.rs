@@ -170,14 +170,27 @@ fn remote_binary(target: &str, sh: &Arc<Mutex<Shared>>) -> Result<String, String
     if let Some(bin) = found {
         return Ok(bin);
     }
-    if !platform_matches(&platform) {
+    let force_download = std::env::var_os("ARGUS_FORCE_REMOTE_DOWNLOAD").is_some();
+    if force_download || !platform_matches(&platform) {
+        // Different OS/CPU (e.g. Windows -> Linux): the remote fetches its own build.
+        set_state(sh, LinkState::Installing);
+        let out = ssh(target)
+            .arg(sh_c(&download_script()))
+            .output()
+            .map_err(|e| format!("ssh: {e}"))?;
+        if out.status.success() {
+            return Ok(REMOTE_BIN.to_string());
+        }
         let os = if platform.is_empty() {
             "unknown system".to_string()
         } else {
             platform
         };
+        let why = first_line(&String::from_utf8_lossy(&out.stdout))
+            .or_else(|| first_line(&String::from_utf8_lossy(&out.stderr)))
+            .unwrap_or_default();
         return Err(format!(
-            "argus missing on remote ({os}): install it to ~/.cache/argus/argus (INSTALL.md §4)"
+            "could not install argus on remote ({os}) {why}: see INSTALL.md §4"
         ));
     }
     set_state(sh, LinkState::Installing);
@@ -201,6 +214,43 @@ fn remote_binary(target: &str, sh: &Arc<Mutex<Shared>>) -> Result<String, String
     } else {
         Err("upload failed".into())
     }
+}
+
+/// Runs `script` with a POSIX shell whatever the remote login shell is.
+fn sh_c(script: &str) -> String {
+    format!("sh -c {}", super::actions::sh_quote(script))
+}
+
+/// Shell script run on the remote: downloads the matching release build into
+/// `~/.cache/argus/argus` (this version first, else the latest release).
+pub fn download_script() -> String {
+    let version = env!("CARGO_PKG_VERSION");
+    format!(
+        r#"set -e
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64|Linux-amd64) t=x86_64-unknown-linux-gnu ;;
+  Linux-aarch64|Linux-arm64) t=aarch64-unknown-linux-gnu ;;
+  Darwin-x86_64) t=x86_64-apple-darwin ;;
+  Darwin-arm64) t=aarch64-apple-darwin ;;
+  *) echo "unsupported platform $(uname -sm)"; exit 3 ;;
+esac
+get() {{ if command -v curl >/dev/null 2>&1; then curl -fsSL "$1"; elif command -v wget >/dev/null 2>&1; then wget -qO- "$1"; else echo "needs curl or wget"; exit 4; fi; }}
+base=https://github.com/serkankoyun/argus/releases
+tmp=$(mktemp -d)
+v=v{version}
+if ! get "$base/download/$v/argus-$v-$t.tar.gz" > "$tmp/a.tgz" 2>/dev/null; then
+  v=$(get https://api.github.com/repos/serkankoyun/argus/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
+  [ -n "$v" ] || {{ echo "no release found"; exit 5; }}
+  get "$base/download/$v/argus-$v-$t.tar.gz" > "$tmp/a.tgz"
+fi
+tar xzf "$tmp/a.tgz" -C "$tmp"
+mkdir -p "$HOME/.cache/argus"
+mv "$tmp"/argus-*/argus "$HOME/.cache/argus/argus.tmp"
+chmod +x "$HOME/.cache/argus/argus.tmp"
+mv "$HOME/.cache/argus/argus.tmp" "$HOME/.cache/argus/argus"
+rm -rf "$tmp"
+"$HOME/.cache/argus/argus" --version"#
+    )
 }
 
 /// `uname -sm` output vs. the platform this binary was built for.
@@ -424,6 +474,21 @@ mod tests {
         let (bin, os) = parse_probe("OS=Linux aarch64\n");
         assert!(bin.is_none());
         assert_eq!(os, "Linux aarch64");
+    }
+
+    #[test]
+    fn download_script_covers_platforms_and_version() {
+        let s = download_script();
+        for t in [
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
+            "x86_64-apple-darwin",
+            "aarch64-apple-darwin",
+        ] {
+            assert!(s.contains(t), "missing {t}");
+        }
+        assert!(s.contains(&format!("v={}", ["v", env!("CARGO_PKG_VERSION")].concat())));
+        assert!(sh_c("echo 'x'").starts_with("sh -c '"));
     }
 
     #[test]

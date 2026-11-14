@@ -66,6 +66,14 @@ jobs:
           jq -e '.hosts[0].connected == true' remote.json
           jq -e '.agents | length == 2' remote.json
           test -x ~/.cache/argus/argus
+      - name: Remote host on another platform (server downloads its own build)
+        run: |
+          rm -rf ~/.cache/argus
+          ARGUS_FORCE_REMOTE_DOWNLOAD=1 ./target/release/argus --host localhost --no-local snapshot --wait 40 > remote2.json
+          jq '.hosts' remote2.json
+          jq -e '.hosts[0].connected == true' remote2.json
+          jq -e '.agents | length == 2' remote2.json
+          ~/.cache/argus/argus --version
       - name: Approval hook round trip
         run: |
           mkdir -p /tmp/cc && cp -r tests/fixtures/claude/projects /tmp/cc/

@@ -176,7 +176,7 @@ Essential keys:
 
 | Key | Action |
 |---|---|
-| `1`–`9`, `0` | Jump to a view (Overview, Sequence, Agent, Fleet, Graph, Room, Lanes, Channel, Task map, Pair) |
+| `1`–`9`, `0` or `F1`–`F10` | Jump to a view (Overview, Sequence, Agent, Fleet, Graph, Room, Lanes, Channel, Task map, Pair); you can also click the tabs |
 | `T` | Teams view; `←→` choose a team, `⏎` open it, `esc` back to all teams |
 | `t` | Filter every view to the next team |
 | `↑` `↓` | Select an agent (the selection follows you across views) |
@@ -246,17 +246,19 @@ jump hosts, ports).
 
 3. On first connection Argus looks for `argus` on the remote machine (on its `PATH` and in
    `~/.cache/argus`, `~/.local/bin`, `~/.cargo/bin`, `/usr/local/bin` and the Homebrew
-   folders). If it is missing and the remote has the **same OS and CPU type** as your
-   machine, Argus copies itself to `~/.cache/argus/argus` there.
+   folders). If it is missing, Argus installs it into `~/.cache/argus/argus` automatically:
+   - same OS and CPU as your machine: Argus copies itself over SSH;
+   - **different OS or CPU** (e.g. Windows → Linux, Mac → Linux, x86 → ARM): the server
+     downloads the matching build from the GitHub releases page with `curl` or `wget`.
 
-   **Connecting from Windows, or to a different OS/CPU** (e.g. Windows or a Mac → a Linux
-   server): automatic copying is not possible, so install Argus on the server once:
+   So connecting from Windows to a Linux server works out of the box, as long as the
+   server can reach github.com. If it cannot (offline/firewalled servers), install manually:
 
    ```sh
    ssh user@server
    uname -m                       # x86_64 → x86_64 archive, aarch64 → aarch64 archive
    mkdir -p ~/.cache/argus && cd /tmp
-   curl -LO https://github.com/serkankoyun/argus/releases/latest/download/argus-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+   curl -LO https://github.com/serkankoyun/argus/releases/download/v0.1.0/argus-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
    tar xzf argus-v*-unknown-linux-gnu.tar.gz
    mv argus-v*-unknown-linux-gnu/argus ~/.cache/argus/argus
    ~/.cache/argus/argus --version
@@ -264,6 +266,9 @@ jump hosts, ports).
 
    (Replace `v0.1.0` with the latest version from the releases page.) If the server is not
    ready, the Overview and Fleet views show the reason next to the host in amber.
+
+   Sessions that are already running on the server appear as soon as the collector starts;
+   there is no need to restart Claude Code (except after installing the approval hook).
 
 Nothing listens on a network port; the remote collector runs only while you are connected.
 The Fleet view (`4`) shows connection health, round-trip time and alerts per host.
@@ -302,6 +307,10 @@ one, or call this Argus by its full path.
 `ls ~/.claude/projects/`. If Claude Code uses another config folder, start Argus with
 `--claude-dir` or set `CLAUDE_CONFIG_DIR`. Only sessions modified in the last 24 hours are shown.
 
+**Number keys do not switch views** — Use `F1`–`F10`, `Tab` / `Shift+Tab`, or click the
+tabs with the mouse. Start Argus with `argus --debug-keys` to see which key it receives
+(bottom right) and include that in an issue.
+
 **Boxes, question marks or misaligned columns** — Use a font with box-drawing and braille
 glyphs and a modern terminal (on Windows: Windows Terminal, not the legacy console).
 
@@ -315,7 +324,8 @@ glyphs and a modern terminal (on Windows: Windows Terminal, not the legacy conso
 
 **Remote host stays "connecting…" or shows an error** — The reason is shown in amber next
 to the host (Overview) and in the Fleet view's alerts (`4`).
-- `argus missing on remote (…)`: install Argus on the server (section 4, step 3).
+- `could not install argus on remote (…)`: the server could not download Argus (no access to
+  github.com, or no `curl`/`wget`); install it manually (section 4, step 3).
 - `Permission denied`, `Host key verification failed` or `ssh failed`: run
   `ssh -o BatchMode=yes user@server true` yourself; it must succeed without any prompt.
 - Connected (green) but no agents: the server has no Claude Code session active in the last

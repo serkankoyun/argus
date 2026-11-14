@@ -56,8 +56,8 @@ Agent messages and "now" descriptions are shown in the user's language.
 - **Collector:** a mode of the same `argus` binary. Reads `~/.claude` (session JSONL, teams/inboxes,
   tasks), the process table and optional hook events; normalizes them into one event schema.
 - **Connecting:** `:connect X` → reuses the user's SSH, finds argus on the remote (PATH, `~/.cache/argus`,
-  `~/.local/bin`, `~/.cargo/bin`, `/usr/local/bin`, Homebrew), copies itself only when OS/CPU match
-  (never from Windows), otherwise shows an install hint; starts the collector,
+  `~/.local/bin`, `~/.cargo/bin`, `/usr/local/bin`, Homebrew), copies itself when OS/CPU match,
+  otherwise the remote downloads its own build from GitHub releases (Windows → Linux works); starts the collector,
   streams over the SSH channel. No open ports, no VPN. Nothing is left running on disconnect
   (optional persistent service mode). Without SSH (e.g. Windows) the collector dials out over TLS.
 - **Hub (optional):** for team-wide monitoring and continuous recording.

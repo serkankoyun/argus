@@ -74,6 +74,9 @@ pub struct App {
     pub group_by_team: bool,
     /// Highlighted card in the Teams view.
     pub team_cursor: usize,
+    /// `--debug-keys`: show the last key event in the footer.
+    pub debug_keys: bool,
+    pub last_key: String,
     rx: Receiver<Snapshot>,
     controls: Sender<Control>,
     notices: Receiver<Notice>,
@@ -107,6 +110,8 @@ impl App {
             team: None,
             group_by_team: false,
             team_cursor: 0,
+            debug_keys: false,
+            last_key: String::new(),
             rx: ch.snapshots,
             controls: ch.controls,
             notices: ch.notices,
@@ -176,6 +181,22 @@ impl App {
             .is_some_and(|id| self.snapshot.agent(id).is_some());
         if !valid {
             self.selected = self.ordered().first().map(|a| a.id.clone());
+        }
+    }
+
+    pub fn set_view_index(&mut self, i: usize) {
+        if let Some(v) = View::ALL.get(i) {
+            self.view = *v;
+        }
+    }
+
+    /// Mouse wheel: moves the selection (or the team cursor on the Teams view).
+    pub fn scroll(&mut self, delta: isize) {
+        if self.view == View::Teams {
+            let n = self.full.teams().len().max(1);
+            self.team_cursor = (self.team_cursor as isize + delta).rem_euclid(n as isize) as usize;
+        } else {
+            self.move_selection(delta);
         }
     }
 
@@ -372,6 +393,9 @@ impl App {
     }
 
     pub fn on_key(&mut self, key: KeyEvent) {
+        if self.debug_keys {
+            self.last_key = format!("{:?} {:?} {:?}", key.code, key.modifiers, key.kind);
+        }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;
             return;
@@ -393,6 +417,8 @@ impl App {
             KeyCode::Char('r') => self.decide(false),
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Char(' ') => self.paused = !self.paused,
+            KeyCode::F(n @ 1..=10) => self.set_view_index(n as usize - 1),
+            KeyCode::F(11) => self.view = View::Teams,
             KeyCode::Char(c @ '0'..='9') => {
                 let n = c.to_digit(10).unwrap_or(1) as usize;
                 let idx = if n == 0 { 9 } else { n - 1 };

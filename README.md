@@ -93,7 +93,7 @@ argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
 
 | Key | Action |
 |---|---|
-| `1`–`0` | Jump to a view |
+| `1`–`0` / `F1`–`F10` / click a tab | Jump to a view |
 | `tab` / `shift+tab` | Next / previous view |
 | `↑` `↓` / `j` `k` | Select agent (the selection follows you across views) |
 | `⏎` / `esc` | Agent detail / back to Overview |
@@ -114,7 +114,9 @@ argus --host me@prod-1 --host me@gpu-2   # or press : and type connect me@prod-1
 ```
 
 Argus uses your own `ssh` (keys, config, jump hosts all work). If the remote has no
-`argus`, the local binary is copied to `~/.cache/argus/` when the platforms match.
+`argus`, it is installed into `~/.cache/argus/` automatically — copied over SSH when the
+platforms match, otherwise downloaded by the server from the releases page (so Windows →
+Linux works too).
 Nothing listens on a port; the collector stops when you disconnect.
 
 ## Approving from Argus
