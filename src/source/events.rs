@@ -59,6 +59,13 @@ pub struct Event {
     pub agent_id: String,
     pub tool: String,
     pub status: String,
+    /// Permission mode, when the writer reports it.
+    pub mode: String,
+}
+
+/// Permission modes in which Claude Code never shows a permission prompt.
+pub fn mode_never_asks(mode: &str) -> bool {
+    matches!(mode, "bypassPermissions" | "auto" | "dontAsk" | "yolo")
 }
 
 fn text(v: &Value, keys: &[&str]) -> String {
@@ -90,6 +97,7 @@ pub fn parse(line: &str) -> Option<Event> {
         agent_id: text(&v, &["agentId", "agent_id"]),
         tool: text(&v, &["tool", "tool_name"]),
         status: text(&v, &["status", "notification_type"]),
+        mode: text(&v, &["mode", "permission_mode", "permissionMode"]),
     })
 }
 
@@ -105,10 +113,14 @@ pub struct Live {
     pub idle: bool,
     pub ended: bool,
     pub finished_subagents: HashSet<String>,
+    pub mode: String,
 }
 
 impl Live {
     fn apply(&mut self, e: &Event) {
+        if !e.mode.is_empty() {
+            self.mode = e.mode.clone();
+        }
         if e.ts < self.last {
             return;
         }
@@ -235,6 +247,16 @@ impl EventLog {
                     continue;
                 }
             }
+            // A session (or the parent of a subagent) that never asks for
+            // permission is not waiting for an approval.
+            let quiet = [a.id.as_str(), root]
+                .iter()
+                .filter_map(|k| self.sessions.get(*k))
+                .any(|l| mode_never_asks(&l.mode) && !l.asking);
+            if quiet && a.state == AgentState::Waiting {
+                a.state = AgentState::Working;
+                approved.insert(a.id.clone());
+            }
             let Some(live) = self.sessions.get(a.id.as_str()) else {
                 continue;
             };
@@ -289,6 +311,7 @@ pub fn line_from_hook(payload: &Value, ts: Millis) -> Option<String> {
         ("agent_id", "agentId"),
         ("tool_name", "tool"),
         ("notification_type", "status"),
+        ("permission_mode", "mode"),
         ("cwd", "cwd"),
     ] {
         if !s(from).is_empty() {
@@ -421,5 +444,12 @@ mod tests {
         log.apply(&mut snap, 3000);
         assert_eq!(snap.agents[0].state, AgentState::Idle);
         assert_eq!(snap.agents[1].state, AgentState::Done);
+        // Sessions in auto mode never wait for approvals.
+        let mut log = EventLog::default();
+        log.record(&parse(r#"{"ts":5,"event":"PostToolUse","sid":"s","mode":"auto"}"#).unwrap());
+        let mut snap = snap_with(AgentState::Waiting, 900);
+        log.apply(&mut snap, 1000);
+        assert_eq!(snap.agents[1].state, AgentState::Working);
+        assert!(snap.messages.is_empty());
     }
 }

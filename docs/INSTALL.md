@@ -415,7 +415,8 @@ subscriptions and discounts are not known to Argus.
 waits for you** — Without the hooks, Argus infers states from transcripts, which Claude
 Code writes only when a step finishes: a long command looks like a pending approval. Install
 the hooks (section 3) on every machine that runs agents. Long commands also show how long
-they have been running, for example `[6m12s] npm test`.
+they have been running, for example `[6m12s] npm test`. Since v0.1.9 sessions in a mode that
+never asks (`auto`, `bypassPermissions`) are never shown as waiting for approval.
 
 Still stuck? [Open an issue](https://github.com/serkankoyun/argus/issues) with your OS,
 terminal, `argus --version` and, if possible, a screenshot.

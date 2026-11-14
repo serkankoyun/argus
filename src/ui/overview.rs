@@ -162,6 +162,8 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
     let visible = area.height.saturating_sub(2) as usize;
+    // Without a team filter, every flow line says which team it belongs to.
+    let tag_teams = app.team.is_none() && app.snapshot.teams().len() > 1;
     let mut lines: Vec<Line> = app
         .snapshot
         .messages
@@ -170,8 +172,19 @@ fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
         .take(visible)
         .map(|m| {
             let c = kind_color(m.kind);
+            let team = if tag_teams {
+                let t = app
+                    .full
+                    .agent(&m.from)
+                    .map(|a| a.team_key())
+                    .unwrap_or_default();
+                format!("{:<14} ", trunc(&t, 14))
+            } else {
+                String::new()
+            };
             Line::from(vec![
                 Span::styled(format!("{} ", clock(m.ts)), Style::new().fg(DIM)),
+                Span::styled(team, Style::new().fg(CYAN)),
                 Span::styled(
                     format!("{:>12}", trunc(name(app, &m.from).as_str(), 12)),
                     Style::new().fg(PURPLE),

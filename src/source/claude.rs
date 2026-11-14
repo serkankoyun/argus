@@ -310,6 +310,8 @@ pub struct Session {
     model: String,
     agent_name: Option<String>,
     team: Option<String>,
+    /// Claude Code permission mode (`default`, `acceptEdits`, `bypassPermissions`, ...).
+    mode: String,
     first_prompt: String,
     usage: Usage,
     cost: f64,
@@ -347,6 +349,7 @@ impl Session {
             branch: String::new(),
             model: String::new(),
             agent_name: None,
+            mode: String::new(),
             team: None,
             first_prompt: String::new(),
             usage: Usage::default(),
@@ -399,6 +402,9 @@ impl Session {
                     *slot = s.to_string();
                 }
             }
+        }
+        if let Some(m) = v.get("permissionMode").and_then(Value::as_str) {
+            self.mode = m.to_string();
         }
         if let Some(n) = v.get("agentName").and_then(Value::as_str) {
             self.agent_name = Some(n.to_string());
@@ -708,7 +714,7 @@ pub fn build_snapshot<'a>(
 
     for s in &sessions {
         let alive = is_alive(&s.cwd, live_cwds);
-        let state = infer_state(s, alive, now, &sessions);
+        let state = infer_state(s, alive, now, &sessions, never_asks(s, &sessions));
         let (tool, target) = match s.pending.values().max_by_key(|p| p.ts) {
             // Long commands write nothing until they finish: show how long it runs.
             Some(p) if now - p.ts >= 60_000 => (
@@ -803,7 +809,12 @@ pub fn build_snapshot<'a>(
         }
         let alive = is_alive(&s.cwd, live_cwds);
         if let Some(p) = s.pending.values().max_by_key(|p| p.ts) {
-            if alive && now - p.ts > 20_000 && now - s.last > 20_000 && !is_long_running(&p.name) {
+            if alive
+                && !never_asks(s, &sessions)
+                && now - p.ts > 20_000
+                && now - s.last > 20_000
+                && !is_long_running(&p.name)
+            {
                 snap.messages.push(Message {
                     ts: p.ts,
                     from: s.id.clone(),
@@ -817,6 +828,7 @@ pub fn build_snapshot<'a>(
             }
         }
     }
+    disambiguate_names(&mut snap, &sessions);
     snap.messages.sort_by_key(|m| m.ts);
     if snap.messages.len() > MAX_MESSAGES {
         snap.messages.drain(..snap.messages.len() - MAX_MESSAGES);
@@ -898,6 +910,42 @@ fn project_name(s: &Session) -> String {
         .unwrap_or_else(|| s.project.clone())
 }
 
+/// Several subagents of one type ("orchestra-developer" x5) are told apart by
+/// the description they were given, else by a short id.
+fn disambiguate_names(snap: &mut Snapshot, sessions: &[&Session]) {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for a in &snap.agents {
+        *counts.entry(a.name.clone()).or_default() += 1;
+    }
+    for a in snap.agents.iter_mut() {
+        if counts.get(&a.name).copied().unwrap_or(0) < 2 {
+            continue;
+        }
+        let desc = sessions
+            .iter()
+            .find(|s| s.id == a.id)
+            .and_then(|s| spawn_description(s, sessions))
+            .unwrap_or_default();
+        let tail = a.id.rsplit('/').next().unwrap_or("");
+        let tail = &tail[..tail.len().min(4)];
+        a.name = if desc.is_empty() {
+            format!("{}#{tail}", a.name)
+        } else {
+            format!("{}#{tail}", short(&desc, 22))
+        };
+    }
+}
+
+fn spawn_description(s: &Session, all: &[&Session]) -> Option<String> {
+    let parent = all.iter().find(|p| Some(&p.id) == s.parent.as_ref())?;
+    parent
+        .spawns
+        .iter()
+        .find(|sp| prompt_matches(&s.first_prompt, &sp.prompt))
+        .map(|sp| sp.description.clone())
+        .filter(|d| !d.is_empty())
+}
+
 fn agent_name(s: &Session, all: &[&Session]) -> String {
     if let Some(n) = &s.agent_name {
         return n.clone();
@@ -924,7 +972,27 @@ fn agent_name(s: &Session, all: &[&Session]) -> String {
     format!("{}#{short_id}", project_name(s))
 }
 
-fn infer_state(s: &Session, alive: bool, now: Millis, all: &[&Session]) -> AgentState {
+/// Sessions in a mode that never shows permission prompts (or whose parent is in
+/// one) cannot be waiting for an approval: a long tool call is just running.
+fn never_asks(s: &Session, all: &[&Session]) -> bool {
+    let mode = match (&s.parent, s.mode.is_empty()) {
+        (Some(p), true) => all
+            .iter()
+            .find(|x| &x.id == p)
+            .map(|x| x.mode.as_str())
+            .unwrap_or(""),
+        _ => s.mode.as_str(),
+    };
+    super::events::mode_never_asks(mode)
+}
+
+fn infer_state(
+    s: &Session,
+    alive: bool,
+    now: Millis,
+    all: &[&Session],
+    never_asks: bool,
+) -> AgentState {
     let age = now - s.last;
     // A subagent is done once its parent received the result.
     if let Some(parent) = &s.parent {
@@ -944,6 +1012,9 @@ fn infer_state(s: &Session, alive: bool, now: Millis, all: &[&Session]) -> Agent
         return AgentState::Done;
     }
     if let Some(p) = s.pending.values().max_by_key(|p| p.ts) {
+        if never_asks {
+            return AgentState::Working;
+        }
         let waited = now - p.ts;
         if waited > 10 * 60_000 && !is_long_running(&p.name) {
             return AgentState::Stalled;

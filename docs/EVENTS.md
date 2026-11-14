@@ -31,6 +31,7 @@ writes `events-YYYY-MM-DD.jsonl` and deletes its own files after 3 days.
 | `agentId` | no | Subagent id (the `agent-<id>.jsonl` file of that session) |
 | `tool` | no | Tool name for tool events |
 | `status` | no | For `Notification`: `idle_prompt`, `permission_prompt`, … |
+| `mode` | no | Permission mode; `auto`, `bypassPermissions` and `dontAsk` mean the session never waits for approvals |
 
 Unknown fields are ignored. `session_id`, `agent_id`, `tool_name`, `hook_event_name` and
 `notification_type` are accepted as aliases, so raw Claude Code hook payloads with a `ts`
