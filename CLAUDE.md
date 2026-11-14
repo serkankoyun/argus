@@ -1,6 +1,8 @@
 # Argus — notes for Claude sessions
 
 Read `docs/PROJECT_BRIEF.md` first: it holds the vision, every decision and the roadmap.
+Working on the machine that runs the agents? Follow `docs/HANDOFF.md` (look at the real
+screens in tmux, compare with the coordinator, then ship).
 
 ## Rules
 - Everything in the repository is in **English** (code, comments, docs, commits, issues).
