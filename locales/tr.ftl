@@ -147,3 +147,62 @@ col-target = HEDEF
 col-dur = SÜRE
 col-status = DURUM
 status-running = sürüyor
+
+## Sequence
+pane-sequence = Akış · en yeni altta
+pane-tasks = Görevler
+pane-message = Son mesaj
+unassigned = atanmadı
+tasks-none = Henüz görev yok (Agent Teams görev listeleri burada görünür).
+
+## Fleet
+col-region = BÖLGE
+col-collector = COLLECTOR
+col-rtt = GECİKME
+col-cpu = CPU
+col-mem = BELLEK
+col-agents = AJAN
+col-last = SON OLAY
+collector-ok = sağlıklı
+collector-down = yeniden bağlanıyor
+ago = { $t } önce
+pane-alerts = Uyarılar
+alert-waiting = { $what }
+alert-stalled = takıldı · { $what }
+alert-context = context %{ $p } · yakında sıkıştırılacak
+alert-host-down = collector bağlantısı koptu · yerelde biriktiriyor
+alerts-none = Her şey yolunda.
+pane-hub = Veri kaynağı
+info-source = kaynak
+info-hosts = sunucu
+info-agents = ajan
+info-messages = mesaj
+info-cost = maliyet (tahmini)
+info-connect = SSH ile uzak sunucular v0.3'te geliyor.
+cost-by-agent = { $host } · ajan bazında maliyet
+
+## Channel
+pane-channels = Kanallar
+chan-approvals = onaylar
+chan-direct = özel mesajlar
+chan-hosts = sunucular
+chan-perm = { $who } ONAY İSTİYOR → sen: { $what }   [a] onayla  [r] reddet
+chan-input-hint = /mesaj <ajan> · /onayla · /durdur  (v0.4)
+pane-members = Kişiler · şu an
+
+## Task map
+pane-taskmap = Bağımlılıklar ve teslimler
+pane-bottlenecks = Darboğazlar
+bottlenecks = Darboğazlar
+bottlenecks-none = Engellenen görev yok.
+holds-n = { $n } görevi bekletiyor
+critical-path = Kritik yol
+tasks-progress = { $total } görevden { $done } tanesi bitti
+pane-utilization = Ajan doluluğu · 15 dk
+
+## Pair
+pair-none = Henüz konuşma partneri yok.
+pair-quiet = Şu an yolda mesaj yok.
+pair-history = önceki mesajlar
+pair-channel = Aralarındaki kanal
+pair-others = Diğerleri şu an

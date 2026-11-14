@@ -245,8 +245,14 @@ fn draw_files(frame: &mut Frame, area: Rect, app: &App, a: &Agent) {
         .map(|(p, add, del)| {
             Line::from(vec![
                 Span::raw(format!("{:<34}", trunc(p, 33))),
-                Span::styled(format!("{:>6}", format!("+{add}")), Style::new().fg(GREEN)),
-                Span::styled(format!("{:>6}", format!("−{del}")), Style::new().fg(RED)),
+                Span::styled(
+                    format!("{:>6}", ["+", &add.to_string()].concat()),
+                    Style::new().fg(GREEN),
+                ),
+                Span::styled(
+                    format!("{:>6}", ["−", &del.to_string()].concat()),
+                    Style::new().fg(RED),
+                ),
             ])
         })
         .collect();

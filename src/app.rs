@@ -52,16 +52,6 @@ impl View {
         }
     }
 
-    /// Roadmap milestone in which the view ships (shown on placeholder screens).
-    pub fn milestone(self) -> &'static str {
-        match self {
-            View::Overview | View::Graph | View::Room | View::Lanes => "v0.2",
-            View::Fleet => "v0.3",
-            View::Sequence | View::AgentDetail => "v0.4",
-            View::Channel | View::TaskMap | View::Pair => "v1.0",
-        }
-    }
-
     pub fn index(self) -> usize {
         View::ALL.iter().position(|v| *v == self).unwrap_or(0)
     }

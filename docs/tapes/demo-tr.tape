@@ -32,6 +32,21 @@ Down
 Type "3"
 Sleep 3s
 Screenshot docs/media/agent-tr.png
+Type "2"
+Sleep 4s
+Screenshot docs/media/sequence-tr.png
+Type "4"
+Sleep 4s
+Screenshot docs/media/fleet-tr.png
+Type "8"
+Sleep 4s
+Screenshot docs/media/channel-tr.png
+Type "9"
+Sleep 4s
+Screenshot docs/media/taskmap-tr.png
+Type "0"
+Sleep 4s
+Screenshot docs/media/pair-tr.png
 Type "1"
 Sleep 2s
 Hide

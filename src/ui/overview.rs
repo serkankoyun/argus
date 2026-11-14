@@ -148,7 +148,8 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
     let visible = area.height.saturating_sub(2) as usize;
-    let mut lines: Vec<Line> = s
+    let mut lines: Vec<Line> = app
+        .snapshot
         .messages
         .iter()
         .rev()

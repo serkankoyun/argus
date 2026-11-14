@@ -149,3 +149,62 @@ col-target = TARGET
 col-dur = DUR
 col-status = STATUS
 status-running = running
+
+## Sequence
+pane-sequence = Sequence · newest at the bottom
+pane-tasks = Tasks
+pane-message = Latest message
+unassigned = unassigned
+tasks-none = No tasks yet (Agent Teams task lists appear here).
+
+## Fleet
+col-region = REGION
+col-collector = COLLECTOR
+col-rtt = RTT
+col-cpu = CPU
+col-mem = MEM
+col-agents = AGENTS
+col-last = LAST EVENT
+collector-ok = ok
+collector-down = reconnecting
+ago = { $t } ago
+pane-alerts = Alerts
+alert-waiting = { $what }
+alert-stalled = stalled · { $what }
+alert-context = context at { $p }% · compaction soon
+alert-host-down = collector link down · buffering locally
+alerts-none = All clear.
+pane-hub = Data source
+info-source = source
+info-hosts = hosts
+info-agents = agents
+info-messages = messages
+info-cost = cost (est.)
+info-connect = Remote hosts over SSH arrive in v0.3.
+cost-by-agent = { $host } · cost by agent
+
+## Channel
+pane-channels = Channels
+chan-approvals = approvals
+chan-direct = direct messages
+chan-hosts = hosts
+chan-perm = { $who } NEEDS APPROVAL → you: { $what }   [a] approve  [r] reject
+chan-input-hint = /msg <agent> · /approve · /stop  (v0.4)
+pane-members = Members · now
+
+## Task map
+pane-taskmap = Dependencies and hand-offs
+pane-bottlenecks = Bottlenecks
+bottlenecks = Bottlenecks
+bottlenecks-none = Nothing is blocked.
+holds-n = holds up { $n } task(s)
+critical-path = Critical path
+tasks-progress = { $done } of { $total } tasks done
+pane-utilization = Agent utilization · 15 min
+
+## Pair
+pair-none = No conversation partner yet.
+pair-quiet = No message in flight.
+pair-history = earlier messages
+pair-channel = Channel between them
+pair-others = Everyone else, now

@@ -1,12 +1,17 @@
 //! Rendering. Every view shares the header, the view bar and the key hints.
 
 mod agent;
+mod channel;
 mod common;
+mod fleet;
 mod graph;
 mod lanes;
 mod layout;
 mod overview;
+mod pair;
 mod room;
+mod sequence;
+mod taskmap;
 
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -35,7 +40,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::Graph => graph::draw(frame, body, app),
         View::Room => room::draw(frame, body, app),
         View::Lanes => lanes::draw(frame, body, app),
-        other => draw_placeholder(frame, body, app, other),
+        View::Sequence => sequence::draw(frame, body, app),
+        View::Fleet => fleet::draw(frame, body, app),
+        View::Channel => channel::draw(frame, body, app),
+        View::TaskMap => taskmap::draw(frame, body, app),
+        View::Pair => pair::draw(frame, body, app),
     }
     draw_footer(frame, footer, app);
 }
@@ -118,15 +127,6 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
         .highlight_style(Style::new().fg(ACCENT).add_modifier(Modifier::BOLD))
         .divider(Span::styled("│", Style::new().fg(BORDER)));
     frame.render_widget(tabs, area);
-}
-
-fn draw_placeholder(frame: &mut Frame, area: Rect, app: &App, view: View) {
-    let text = app
-        .i18n
-        .t_args("placeholder", &[("milestone", view.milestone())]);
-    let p = Paragraph::new(Line::from(Span::styled(text, Style::new().fg(DIM))))
-        .block(pane(app.i18n.t(view.key()), true));
-    frame.render_widget(p, area);
 }
 
 fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {

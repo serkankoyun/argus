@@ -260,7 +260,8 @@ fn draw_requests(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_conversations(frame: &mut Frame, area: Rect, app: &App) {
     let rows = area.height.saturating_sub(2) as usize;
-    let lines: Vec<Line> = s
+    let lines: Vec<Line> = app
+        .snapshot
         .messages
         .iter()
         .rev()
