@@ -47,4 +47,7 @@ work too.
 | `SessionEnd` | finished (moves to History) |
 | `SubagentStop` with `agentId` | that subagent finished |
 
+Events that carry `agentId` describe that subagent (`PreToolUse` with `agentId` means the
+subagent is running a tool), so subagents get exact states too.
+
 When a transcript line is newer than the last event, the transcript wins.

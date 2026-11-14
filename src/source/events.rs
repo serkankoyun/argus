@@ -109,13 +109,6 @@ pub struct Live {
 
 impl Live {
     fn apply(&mut self, e: &Event) {
-        if !e.agent_id.is_empty() {
-            // Subagent lifecycle; tool events of subagents carry the parent sid too.
-            if e.event == "SubagentStop" {
-                self.finished_subagents.insert(e.agent_id.clone());
-            }
-            return;
-        }
         if e.ts < self.last {
             return;
         }
@@ -138,7 +131,7 @@ impl Live {
                 self.idle = true;
                 self.running = None;
             }
-            "Stop" => {
+            "Stop" | "SubagentStop" => {
                 self.idle = true;
                 self.running = None;
                 self.asking = false;
@@ -167,6 +160,21 @@ impl EventLog {
             dirs,
             ..Self::default()
         }
+    }
+
+    /// Session events go to the session; events carrying `agentId` come from a
+    /// subagent of that session and go to `<sid>/<agentId>`, the subagent's id.
+    pub fn record(&mut self, e: &Event) {
+        if e.agent_id.is_empty() {
+            self.sessions.entry(e.sid.clone()).or_default().apply(e);
+            return;
+        }
+        if e.event == "SubagentStop" {
+            let parent = self.sessions.entry(e.sid.clone()).or_default();
+            parent.finished_subagents.insert(e.agent_id.clone());
+        }
+        let key = format!("{}/{}", e.sid, e.agent_id);
+        self.sessions.entry(key).or_default().apply(e);
     }
 
     pub fn poll(&mut self) {
@@ -203,7 +211,7 @@ impl EventLog {
             let complete: Vec<u8> = partial.drain(..=end).collect();
             for line in String::from_utf8_lossy(&complete).lines() {
                 if let Some(e) = parse(line) {
-                    self.sessions.entry(e.sid.clone()).or_default().apply(&e);
+                    self.record(&e);
                 }
             }
         }
@@ -217,15 +225,19 @@ impl EventLog {
                 Some((r, s)) => (r, Some(s)),
                 None => (a.id.as_str(), None),
             };
-            let Some(live) = self.sessions.get(root) else {
+            if let Some(sub) = sub {
+                if self
+                    .sessions
+                    .get(root)
+                    .is_some_and(|l| l.finished_subagents.contains(sub))
+                {
+                    a.state = AgentState::Done;
+                    continue;
+                }
+            }
+            let Some(live) = self.sessions.get(a.id.as_str()) else {
                 continue;
             };
-            if let Some(sub) = sub {
-                if live.finished_subagents.contains(sub) {
-                    a.state = AgentState::Done;
-                }
-                continue;
-            }
             if live.last + 1000 < a.last_activity {
                 continue; // The transcript is newer than the last event.
             }
@@ -394,16 +406,17 @@ mod tests {
             ))
             .unwrap()
         };
-        let live = log.sessions.entry("s".into()).or_default();
-        live.apply(&ev(1000, "PreToolUse", r#","tool":"Bash""#));
+        log.record(&ev(1000, "PreToolUse", r#","tool":"Bash""#));
+        // A subagent running a long command is working, not waiting.
+        log.record(&ev(1000, "PreToolUse", r#","tool":"Bash","agentId":"sub""#));
         // A long Bash command looked like a pending approval; it is running.
         let mut snap = snap_with(AgentState::Waiting, 900);
         log.apply(&mut snap, 400_000);
         assert_eq!(snap.agents[0].state, AgentState::Working);
+        assert_eq!(snap.agents[1].state, AgentState::Working);
         assert!(snap.messages.is_empty());
-        let live = log.sessions.get_mut("s").unwrap();
-        live.apply(&ev(2000, "Notification", r#","status":"idle_prompt""#));
-        live.apply(&ev(2100, "SubagentStop", r#","agentId":"sub""#));
+        log.record(&ev(2000, "Notification", r#","status":"idle_prompt""#));
+        log.record(&ev(2100, "SubagentStop", r#","agentId":"sub""#));
         let mut snap = snap_with(AgentState::Working, 1900);
         log.apply(&mut snap, 3000);
         assert_eq!(snap.agents[0].state, AgentState::Idle);
