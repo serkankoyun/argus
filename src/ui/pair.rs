@@ -91,7 +91,7 @@ fn draw_terminal(frame: &mut Frame, area: Rect, app: &App, a: &Agent, between: &
         .map(|(ts, role, text)| {
             let line = match role.as_str() {
                 "tool" => Line::from(vec![
-                    Span::styled("⏺ ", Style::new().fg(GREEN)),
+                    Span::styled("● ", Style::new().fg(GREEN)),
                     Span::styled(text.clone(), Style::new().fg(FG)),
                 ]),
                 "assistant" => Line::styled(

@@ -97,11 +97,20 @@ fn draw_sequence(buf: &mut Buffer, area: Rect, app: &App) {
         } else {
             buf.set_string(lo + 1, y + 1, "◀", style);
         }
-        let label = format!(" {} {} ", app.i18n.t(m.kind.key()), m.label);
-        let max = (hi - lo).saturating_sub(2) as usize;
-        let label = trunc(&label, max.max(6));
-        let lx = (lo + hi) / 2 - (label.chars().count() as u16 / 2).min((hi - lo) / 2);
-        buf.set_string(lx, y, &label, Style::new().fg(FG));
+        let label = trunc(&format!(" {} {} ", app.i18n.t(m.kind.key()), m.label), 44);
+        let len = label.chars().count() as u16;
+        let left_edge = area.x + time_w;
+        let right_edge = area.x + area.width;
+        let lx = ((lo + hi) / 2)
+            .saturating_sub(len / 2)
+            .clamp(left_edge, right_edge.saturating_sub(len).max(left_edge));
+        buf.set_stringn(
+            lx,
+            y,
+            &label,
+            (right_edge - lx) as usize,
+            Style::new().fg(FG),
+        );
         buf.set_string(lx + 1, y, app.i18n.t(m.kind.key()), Style::new().fg(c));
     }
 }

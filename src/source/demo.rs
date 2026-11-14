@@ -211,10 +211,17 @@ pub struct DemoSource {
 
 impl DemoSource {
     pub fn new(lang: &str) -> Self {
+        // Start mid-story so every view has history from the first frame.
+        let start = now_millis() - 2 * PERIOD - 30_000;
+        let mut metrics = Metrics::default();
+        let el = now_millis() - start;
+        for k in (0..Series::CAP as i64).rev() {
+            push_metrics(&mut metrics, el - k * 1000);
+        }
         Self {
-            start: now_millis(),
+            start,
             lang: usize::from(lang == "tr"),
-            metrics: Metrics::default(),
+            metrics,
         }
     }
 }
@@ -439,21 +446,25 @@ impl Source for DemoSource {
             ),
         ];
 
-        let m = &mut self.metrics;
-        m.tokens_per_sec
-            .push(400.0 + 80.0 * wave(t, 11.0, 0.0) + 30.0 * wave(t, 3.0, 2.0));
-        m.cost_per_hour.push(6.9 + 0.8 * wave(t, 23.0, 1.0));
-        m.tools_per_min.push(37.0 + 6.0 * wave(t, 7.0, 0.5));
-        m.msgs_per_min.push(14.0 + 4.0 * wave(t, 9.0, 1.5));
-        m.errors.push(if (el / 1000) % 17 == 0 {
-            3.0
-        } else {
-            (1.0 + wave(t, 5.0, 0.0)).max(0.0).round()
-        });
-        m.ctx_avg.push(53.0 + 4.0 * wave(t, 31.0, 0.0));
-        snap.metrics = m.clone();
+        push_metrics(&mut self.metrics, el);
+        snap.metrics = self.metrics.clone();
         snap
     }
+}
+
+fn push_metrics(m: &mut Metrics, el: Millis) {
+    let t = el as f64 / 1000.0;
+    m.tokens_per_sec
+        .push(400.0 + 80.0 * wave(t, 11.0, 0.0) + 30.0 * wave(t, 3.0, 2.0));
+    m.cost_per_hour.push(6.9 + 0.8 * wave(t, 23.0, 1.0));
+    m.tools_per_min.push(37.0 + 6.0 * wave(t, 7.0, 0.5));
+    m.msgs_per_min.push(14.0 + 4.0 * wave(t, 9.0, 1.5));
+    m.errors.push(if (el / 1000) % 17 == 0 {
+        3.0
+    } else {
+        (1.0 + wave(t, 5.0, 0.0)).max(0.0).round()
+    });
+    m.ctx_avg.push(53.0 + 4.0 * wave(t, 31.0, 0.0));
 }
 
 fn task(
