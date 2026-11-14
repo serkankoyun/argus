@@ -448,6 +448,11 @@ stages in the Task map"). Agents started with a description like `R-20261114-184
 analist-hekim-verisi` were named after the run id; since v0.1.29 the word after the run id
 is their name.
 
+**An unrelated session shows as a second coordinator** — Any session that started subagents
+counted as a coordinator. Since v0.1.30, when `teams.json` lists team codes, only a session
+that started agents of those teams (or independent reviewers) gets the `coordinator` label;
+other sessions keep their project name.
+
 **Task lines start with `· ` or independent reviewers sit inside a team** — Event writers that
 move the run id into its own field may keep its separator (`"desc":"· Kurulum sihirbazı …"`);
 since v0.1.28 the separator is dropped. Reviewers that work across teams (independent QA,

@@ -26,7 +26,8 @@
 //! the `teams_file` objects' `label_key` field (default: `label`, `title`,
 //! `displayName`). With `short_names`, a grouped agent is named
 //! `<role> · <work>` (role labels from `roles`); `coordinator` names root
-//! sessions that started subagents and gives them a group of their own.
+//! sessions that started subagents and gives them a group of their own (with
+//! team codes, only sessions that started agents of those teams).
 
 use std::path::{Path, PathBuf};
 
@@ -310,11 +311,35 @@ impl Rules {
             .iter()
             .filter_map(|a| a.parent.clone())
             .collect();
+        // With team codes known, a coordinator is a session that started
+        // agents of those teams (or independent reviewers); another session
+        // of the user that merely started a few helpers is not one.
+        let team_parents: std::collections::HashSet<String> = snap
+            .agents
+            .iter()
+            .filter(|c| {
+                c.team
+                    .as_deref()
+                    .is_some_and(|t| self.teams.iter().any(|x| x == t))
+                    || self.code_of(&c.name).is_some()
+                    || self
+                        .independent_roles
+                        .iter()
+                        .any(|p| c.name.starts_with(p.as_str()))
+            })
+            .filter_map(|c| c.parent.clone())
+            .collect();
         for a in snap.agents.iter_mut() {
             if let Some((_, t)) = self.tasks.iter().find(|(n, _)| *n == a.name) {
                 a.task = t.clone();
             }
-            if a.parent.is_none() && parents.contains(&a.id) {
+            if a.parent.is_none()
+                && parents.contains(&a.id)
+                && !self.teams.is_empty()
+                && !team_parents.contains(&a.id)
+            {
+                a.coordinator = false;
+            } else if a.parent.is_none() && parents.contains(&a.id) {
                 a.coordinator = true;
                 if let Some(label) = &self.coordinator {
                     if a.team.is_none() {
@@ -489,6 +514,48 @@ mod tests {
             Some("karar-kural")
         );
         assert!(infer(&["Claimer#1b4b".to_string()], "x").is_none());
+    }
+
+    /// Live, 19:13: the user's own session in the home folder started three
+    /// analysts for an unrelated run and was shown as a second coordinator.
+    #[test]
+    fn coordinator_only_for_sessions_that_start_team_agents() {
+        use crate::model::Agent;
+        let r = Rules::from_value(&json!({
+            "strip": ["gelistirici-", "analist-"],
+            "teams": ["kabuk-tasarim"],
+            "coordinator": "Koordinatör (CTO)",
+            "default": "ekipsiz"
+        }));
+        let ag = |id: &str, name: &str, parent: Option<&str>| Agent {
+            id: id.into(),
+            name: name.into(),
+            parent: parent.map(str::to_string),
+            ..Agent::default()
+        };
+        let mut snap = Snapshot {
+            agents: vec![
+                ag("claimer", "Claimer#1b4b", None),
+                ag(
+                    "claimer/a1",
+                    "gelistirici-kabuk-tasarim-gezinme",
+                    Some("claimer"),
+                ),
+                ag("home", "cgm#e119", None),
+                ag(
+                    "home/a2",
+                    "analist-hekim-verisi-kamu-kaynaklari",
+                    Some("home"),
+                ),
+            ],
+            ..Snapshot::default()
+        };
+        r.apply(&mut snap);
+        assert_eq!(snap.agents[0].name, "Koordinatör (CTO) · Claimer");
+        assert!(snap.agents[0].coordinator);
+        assert_eq!(snap.agents[2].name, "cgm#e119");
+        assert!(!snap.agents[2].coordinator);
+        assert_eq!(snap.agents[3].team.as_deref(), Some("ekipsiz"));
     }
 
     #[test]

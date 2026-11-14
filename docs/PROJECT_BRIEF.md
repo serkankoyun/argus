@@ -86,6 +86,8 @@ Agent messages and "now" descriptions are shown in the user's language.
   Team sources, in order: Agent Teams, `team`/`agentName` in events, name rules in
   `<claude dir>/argus/teams.json` (strip role prefix, longest team code, aliases, labels),
   project folder. Without an Agent Teams task list, each subagent's assignment is a task.
+  With team codes known, the coordinator label goes only to sessions that started agents
+  of those teams (or independent reviewers), not to every session that started a helper.
   `argus init` infers those rules (roles = shared first segments, team = longest prefix
   shared by two different jobs) so users do not have to write them
 - Recommendation: let Argus launch agents whenever possible
