@@ -63,6 +63,11 @@ Type "g"
 Sleep 4s
 Screenshot docs/media/graph-teams-tr.png
 Type "g"
+Escape
+Sleep 1s
+Type "b"
+Sleep 3s
+Screenshot docs/media/queue-tr.png
 Type "1"
 Sleep 2s
 Hide

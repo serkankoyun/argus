@@ -59,6 +59,15 @@ jobs:
           sudo systemctl start ssh
           ssh -o StrictHostKeyChecking=accept-new localhost true
           mkdir -p ~/.claude && cp -r tests/fixtures/claude/projects ~/.claude/
+          # A synthetic todo file in the fixture sessions' working folder.
+          sudo mkdir -p /home/me/shop/tasks
+          printf '## Backlog\n- [ ] synthetic item\n' | sudo tee /home/me/shop/tasks/todo.md
+      - name: tasks/todo.md is read locally unless turned off
+        run: |
+          ./target/release/argus --claude-dir tests/fixtures/claude snapshot --wait 0 > local.json
+          jq -e '.todos[0].items[0].title == "synthetic item"' local.json
+          ./target/release/argus --claude-dir tests/fixtures/claude --no-todos snapshot --wait 0 > off.json
+          jq -e '(.todos // []) | length == 0' off.json
       - name: Remote host over SSH (auto-installs argus)
         run: |
           ./target/release/argus --host localhost --no-local snapshot --wait 20 > remote.json
@@ -66,6 +75,10 @@ jobs:
           jq -e '.hosts[0].connected == true' remote.json
           jq -e '.agents | length == 2' remote.json
           test -x ~/.cache/argus/argus
+          # Remote todo items cross the network only on request.
+          jq -e '(.todos // []) | length == 0' remote.json
+          ./target/release/argus --host localhost --no-local --remote-todos snapshot --wait 20 > remote-todos.json
+          jq -e '.todos[0].items[0].title == "synthetic item"' remote-todos.json
       - name: Remote host on another platform (server downloads its own build)
         run: |
           rm -rf ~/.cache/argus

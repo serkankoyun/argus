@@ -10,6 +10,7 @@ mod lanes;
 mod layout;
 mod overview;
 mod pair;
+mod queue;
 mod room;
 mod sequence;
 mod taskmap;
@@ -49,6 +50,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::Pair => pair::draw(frame, body, app),
         View::Teams => teams::draw(frame, body, app),
         View::History => history::draw(frame, body, app),
+        View::Queue => queue::draw(frame, body, app),
     }
     draw_footer(frame, footer, app);
 }
@@ -142,6 +144,7 @@ fn tab_titles(app: &App) -> Vec<String> {
                 9 => "0".to_string(),
                 10 => "t".to_string(),
                 11 => "H".to_string(),
+                12 => "b".to_string(),
                 _ => (i + 1).to_string(),
             };
             format!("{n} {}", app.i18n.t(v.key()))
@@ -198,7 +201,18 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
     let key =
         |k: &'static str| Span::styled(format!(" {k} "), Style::new().bg(BORDER).fg(Color::White));
     let label = |id: &str| Span::styled(format!(" {}  ", app.i18n.t(id)), Style::new().fg(DIM));
-    let mut spans = if app.view == View::Teams {
+    let mut spans = if app.view == View::Queue {
+        vec![
+            key("↑↓"),
+            label("key-queue-move"),
+            key("enter"),
+            label("key-open-owner"),
+            key("1-0"),
+            label("key-views"),
+            key("b"),
+            label("key-queue"),
+        ]
+    } else if app.view == View::Teams {
         vec![
             key("↑↓"),
             label("key-team-move"),
@@ -211,6 +225,8 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         let mut v = vec![
             key("1-0"),
             label("key-views"),
+            key("b"),
+            label("key-queue"),
             key("↑↓"),
             label("key-select"),
             key("enter"),
@@ -332,7 +348,167 @@ mod tests {
                 s.tools.push(t);
             }
         }
+        // Hundreds of backlog items: todo files and queued tasks.
+        let base_todos = s.todos.clone();
+        for k in 0..60 {
+            for f in &base_todos {
+                let mut f = f.clone();
+                f.path = format!("{}-{k}", f.path);
+                f.project = format!("{}-{k}", f.project);
+                s.todos.push(f);
+            }
+        }
+        for k in 0..50 {
+            s.tasks.push(crate::model::Task {
+                id: format!("{}", 100 + k),
+                title: format!("queued task {k} with a fairly long title to overflow narrow panes"),
+                owner: Some(format!("api-dev-{}", 1 + k % 7)),
+                since: s.taken_at - 1000 * k as i64,
+                source: format!("~/.claude/tasks/demo/{}.json", 100 + k),
+                ..Default::default()
+            });
+        }
         s
+    }
+
+    /// Rendered text of one frame.
+    fn screen(app: &App, w: u16, h: u16) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+        terminal.draw(|f| draw(f, app)).unwrap();
+        let buf = terminal.backend().buffer();
+        (0..h)
+            .map(|y| {
+                (0..w)
+                    .map(|x| buf[(x, y)].symbol().to_string())
+                    .collect::<String>()
+                    + "\n"
+            })
+            .collect()
+    }
+
+    fn press(app: &mut App, code: ratatui::crossterm::event::KeyCode) {
+        use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
+        app.on_key(KeyEvent::new(code, KeyModifiers::NONE));
+    }
+
+    #[test]
+    fn b_opens_backlog_and_tab_reaches_it() {
+        use ratatui::crossterm::event::KeyCode;
+        let mut app = app_with(DemoSource::new("en").poll());
+        press(&mut app, KeyCode::Char('b'));
+        assert_eq!(app.view, View::Queue);
+        app.view = View::History;
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.view, View::Queue);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.view, View::Overview);
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.view, View::Queue);
+        // Digits still map to the first ten views.
+        press(&mut app, KeyCode::Char('0'));
+        assert_eq!(app.view, View::Pair);
+        app.input = Some(":view backlog".into());
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.view, View::Queue);
+    }
+
+    #[test]
+    fn footer_and_tabs_list_backlog() {
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Overview;
+        let s = screen(&app, 220, 5);
+        assert!(s.contains("b Backlog"), "{s}");
+        assert!(s.contains(" b  backlog"), "{s}");
+        app.i18n = I18n::new(Some("tr"));
+        let s = screen(&app, 220, 5);
+        assert!(s.contains("b Kuyruk"), "{s}");
+        assert!(s.contains(" b  kuyruk"), "{s}");
+        app.view = View::Queue;
+        let s = screen(&app, 220, 5);
+        assert!(s.contains("madde seç"), "{s}");
+    }
+
+    #[test]
+    fn backlog_keys_move_and_open_the_owner() {
+        use ratatui::crossterm::event::KeyCode;
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Queue;
+        let keys: Vec<String> = app.queue.items().iter().map(|i| i.key.clone()).collect();
+        assert_eq!(app.queue_index(), Some(0));
+        press(&mut app, KeyCode::Down);
+        assert_eq!(app.queue_sel.as_deref(), Some(keys[1].as_str()));
+        press(&mut app, KeyCode::Up);
+        press(&mut app, KeyCode::Up);
+        assert_eq!(app.queue_index(), Some(keys.len() - 1), "wraps");
+        press(&mut app, KeyCode::Home);
+        assert_eq!(app.queue_index(), Some(0));
+        press(&mut app, KeyCode::PageDown);
+        assert_eq!(app.queue_index(), Some(10.min(keys.len() - 1)));
+        press(&mut app, KeyCode::End);
+        assert_eq!(app.queue_index(), Some(keys.len() - 1));
+        // The last items are unowned todo items: Enter says so and stays.
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.view, View::Queue);
+        assert!(app.flash.is_some());
+        press(&mut app, KeyCode::Home);
+        let owner = app.queue.items()[0].owner_id.clone().unwrap();
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.view, View::AgentDetail);
+        assert_eq!(app.selected.as_deref(), Some(owner.as_str()));
+    }
+
+    #[test]
+    fn backlog_detail_shows_description_and_source() {
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Queue;
+        let it = app
+            .queue
+            .you
+            .iter()
+            .find(|i| !i.detail.is_empty() && i.location.contains("todo.md"))
+            .expect("a todo item with a description")
+            .clone();
+        app.queue_sel = Some(it.key.clone());
+        let s = screen(&app, 140, 40);
+        assert!(s.contains("Description"), "{s}");
+        let start: String = it.detail.chars().take(20).collect();
+        assert!(s.contains(&start), "{s}");
+        assert!(
+            s.contains(&format!(
+                "tasks/todo.md:{}",
+                it.location.rsplit(':').next().unwrap()
+            )),
+            "{s}"
+        );
+        assert!(s.contains("► ▲"), "{s}");
+    }
+
+    #[test]
+    fn backlog_detail_shows_the_waiting_chain() {
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Queue;
+        let it = app
+            .queue
+            .items()
+            .into_iter()
+            .find(|i| i.chain.len() > 1)
+            .expect("an item with a chain")
+            .clone();
+        app.queue_sel = Some(it.key.clone());
+        let s = screen(&app, 160, 50);
+        assert!(s.contains("Why it waits"), "{s}");
+        assert!(s.contains(" → "), "{s}");
+        assert!(s.contains("root: "), "{s}");
+    }
+
+    #[test]
+    fn backlog_empty_state_mentions_todos_off() {
+        let mut app = app_with(crate::model::Snapshot::default());
+        app.view = View::Queue;
+        app.todos_enabled = false;
+        let s = screen(&app, 120, 20);
+        assert!(s.contains("Nothing queued"), "{s}");
+        assert!(s.contains("--no-todos"), "{s}");
     }
 
     fn app_with(snapshot: crate::model::Snapshot) -> App {
@@ -357,7 +533,21 @@ mod tests {
     fn every_view_renders_crowded_and_tiny_without_panicking() {
         let mut app = app_with(crowded());
         assert!(app.snapshot.agents.len() > 60);
-        for (w, h) in [(187, 54), (120, 36), (80, 24), (40, 12), (10, 5)] {
+        assert!(
+            app.queue.items().len() >= 300,
+            "{}",
+            app.queue.items().len()
+        );
+        for (w, h) in [
+            (187, 54),
+            (120, 36),
+            (99, 30),
+            (80, 24),
+            (40, 12),
+            (40, 10),
+            (10, 5),
+            (1, 1),
+        ] {
             let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
             for v in View::ALL {
                 app.view = v;
@@ -368,6 +558,11 @@ mod tests {
                         .unwrap_or_else(|e| panic!("{v:?} at {w}x{h}: {e}"));
                 }
             }
+            // The Backlog with the selection on its last item.
+            app.view = View::Queue;
+            app.queue_sel = app.queue.items().last().map(|i| i.key.clone());
+            terminal.draw(|f| draw(f, &app)).unwrap();
+            app.queue_sel = None;
         }
     }
 

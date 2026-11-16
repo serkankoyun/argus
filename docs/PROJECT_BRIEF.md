@@ -30,6 +30,7 @@ each other**. It brings agents running on different machines into a single scree
 | Nesting | Coordinator → team lead → the lead's agents. Parents come from spawn results (agentId), not from the file layout (all subagents of a session are stored flat); unnamed agents are named from `<name> · <run> · <task>` descriptions; teams are inherited from the parent |
 | Focus | Views show live agents only: finished agents move to the History view (`H`, `f` toggles). `s` / Fleet+Enter scope every view to one host, `t` opens Teams, Enter scopes every view to one team (`T` cycles); both combine |
 | Runs | A run is read from `runs/<run-id>/` (`run.json`, stage files with front matter and a decision line) and from agents whose description names the run id. Files are often left `pending`, so live agents are the main signal; a `pending` file is a template and its text is never a decision; the last decision in a file counts (rounds are appended). Agent type → stage via `run.json` `stages[].agent`. Leads (agents that started others for the run) are not stage workers |
+| Backlog view | `b` opens a queue of work rather than agents: per owner NOW → QUEUED → WAITING, then "Waiting on you", then the unassigned pool. Built by one pure function (`queue::build`) from the snapshot, so no queue concept enters the wire protocol and the team/host filters come free. Every item is descriptive (title, reason, age, source, owner; detail panel with description, context, path, blockers) and carries the chain of what it waits on to its root; approvals show how many items they hold. Runs queue only their next pending stage (later ones wait on it in turn) |
 | Backlog sources | Agent Teams tasks keep their description, active form, file and date; `run.json` stages keep their planned agent type; `tasks/todo.md` next to the sessions is parsed leniently (open boxes, indented descriptions, "waiting on you" headings, wait markers) with caps (1 MiB, 200 per file, 500 total, 30 days). Only todo data is new in the snapshot (`todos`, additive; protocol stays 1) |
 | Remote todo.md | tasks/todo.md is read locally by default (`--no-todos` turns it off); remote collectors send it only with `--remote-todos` (`argus collect --todos`), and frames that carry it unasked are dropped, because titles may hold personal data |
 | Aesthetic | Dark theme, monospace, ratatui bordered panes, braille lines, no cartoons |
@@ -51,6 +52,10 @@ Design mockups (private canvas, owner only): https://claude.ai/artifact/7QZw7PkM
    has the current stage, and a bottleneck panel (longest stages, rework loops, blocked).
    Falls back to task dependencies and the critical path when there are no runs
 10. **Pair view** — two agents' terminals side by side with the message channel between them
+
+Also: **Teams** (`t`), **History** (`H`) and **Backlog** (`b`) — queued and waiting work per
+agent with the reason and root of each wait, what waits on the user, and the unassigned pool
+from `tasks/todo.md`.
 
 Switching: `1`–`0`, `tab`, `:view <name>`. The selected agent and time cursor carry over between views.
 Agent messages and "now" descriptions are shown in the user's language.
@@ -112,6 +117,10 @@ end-to-end tests in CI (fixtures, SSH loopback, hook round trip).
 v0.1.1 is published (pre-release) with binaries, Homebrew and Scoop packages; it adds
 cross-platform remote installs (Windows → Linux), mouse/F-key view switching and Windows
 rendering fixes found while the maintainer tested on Windows.
+
+v0.1.33 adds the Backlog view (`b`): Agent Teams tasks, run stages, open requests and
+`tasks/todo.md` as one queue with waiting chains; todo files stay local unless
+`--remote-todos` is given.
 
 Next: replay/scrubbing of past sessions, per-team budgets and metrics, winget, config file for hosts,
 richer Agent Teams support (task files, teammate names) once verified on real data.

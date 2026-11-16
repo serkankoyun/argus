@@ -184,6 +184,7 @@ Essential keys:
 | `s` | Filter every view to the next host; on the Fleet view `↑↓` + `Enter` picks one |
 | `f` | Show / hide finished agents (hidden by default) |
 | `H` | History: finished agents with duration, cost and outcome |
+| `b` | Backlog: queued and waiting work per agent, what waits on you, unassigned todo items; `↑↓` choose, `Enter` opens the owner |
 | `↑` `↓` | Select an agent (the selection follows you across views) |
 | `Enter` | Agent detail |
 | `g` | Group Graph and Room by team instead of host |
@@ -311,6 +312,19 @@ ahead show as skipped. Runs untouched for three days are not read; without any r
 map shows task dependencies as before.
 
 ### Backlog and tasks/todo.md
+
+The Backlog (`b`) lists work, not agents. Per agent (or planned role) it shows **NOW** (in
+progress), **QUEUED** (its turn: `2 of 3`, or the run stage it waits for) and **WAITING** (on
+tasks `#3`, on another agent, on you, or rejected/blocked at a stage); then **Waiting on you**
+(open approvals and questions, and todo items that wait for your decision, sorted by how
+many items each one holds), then the **Unassigned pool**. Each row says why it waits, for
+how long, where it comes from and who owns it; when a wait goes through other items, the row
+ends with its root (`root: ▲ db-dev: Bash: …` means your approval unblocks it). The panel on
+the right (below on narrow screens) shows the full title, description, context, source path,
+blockers and the whole "why it waits" chain. Sources: Agent Teams task lists (or each
+subagent's assignment), the next pending stage of each run in `runs/`, open requests, and
+`tasks/todo.md`. A group is marked **bottleneck** when it holds the most queued work of its
+team while a teammate is idle. The team and host filters apply.
 
 Argus also reads `tasks/todo.md` in each session's working folder or up to three levels
 above it (the first 20 files found). Only open checkboxes count; everything is plain

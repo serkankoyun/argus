@@ -6,6 +6,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::i18n::I18n;
 use crate::model::{now_millis, Agent, AgentState, Message, Millis, MsgKind, Snapshot};
+use crate::queue::{self, Queue};
 use crate::source::{Channels, Control, Notice};
 
 /// Every screen Argus can show. The order matches the number keys `1`–`0`.
@@ -23,10 +24,11 @@ pub enum View {
     Pair,
     Teams,
     History,
+    Queue,
 }
 
 impl View {
-    pub const ALL: [View; 12] = [
+    pub const ALL: [View; 13] = [
         View::Overview,
         View::Sequence,
         View::AgentDetail,
@@ -39,6 +41,7 @@ impl View {
         View::Pair,
         View::Teams,
         View::History,
+        View::Queue,
     ];
 
     /// Fluent message id for the view's name.
@@ -56,6 +59,7 @@ impl View {
             View::Pair => "view-pair",
             View::Teams => "view-teams",
             View::History => "view-history",
+            View::Queue => "view-queue",
         }
     }
 
@@ -104,6 +108,12 @@ pub struct App {
     pub should_quit: bool,
     /// Index into [`LANE_WINDOWS`].
     pub lanes_zoom: usize,
+    /// The Backlog of `snapshot`, rebuilt whenever it changes.
+    pub queue: Queue,
+    /// Key of the selected Backlog item (the first one when unset or gone).
+    pub queue_sel: Option<String>,
+    /// Whether this machine reads tasks/todo.md (off with `--no-todos`).
+    pub todos_enabled: bool,
 }
 
 /// Time windows of the Lanes view, in ms (cycled with `z`).
@@ -136,6 +146,9 @@ impl App {
             frame: 0,
             should_quit: false,
             lanes_zoom: 1,
+            queue: Queue::default(),
+            queue_sel: None,
+            todos_enabled: true,
         }
     }
 
@@ -191,6 +204,7 @@ impl App {
             s.hide_finished();
         }
         self.snapshot = s;
+        self.queue = queue::build(&self.snapshot);
         let valid = self
             .selected
             .as_ref()
@@ -248,6 +262,64 @@ impl App {
         true
     }
 
+    /// Index of the selected Backlog item in display order.
+    pub fn queue_index(&self) -> Option<usize> {
+        let items = self.queue.items();
+        if items.is_empty() {
+            return None;
+        }
+        Some(
+            self.queue_sel
+                .as_deref()
+                .and_then(|k| items.iter().position(|i| i.key == k))
+                .unwrap_or(0),
+        )
+    }
+
+    /// Moves the Backlog selection by `delta`, wrapping around or stopping at the ends.
+    fn move_queue(&mut self, delta: isize, wrap: bool) {
+        let items = self.queue.items();
+        let Some(cur) = self.queue_index() else {
+            return;
+        };
+        let n = items.len() as isize;
+        let next = if wrap {
+            (cur as isize + delta).rem_euclid(n)
+        } else {
+            (cur as isize + delta).clamp(0, n - 1)
+        };
+        self.queue_sel = Some(items[next as usize].key.clone());
+    }
+
+    fn on_queue_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => self.move_queue(1, true),
+            KeyCode::Up | KeyCode::Char('k') => self.move_queue(-1, true),
+            KeyCode::PageDown => self.move_queue(10, false),
+            KeyCode::PageUp => self.move_queue(-10, false),
+            KeyCode::Home => self.move_queue(isize::MIN / 2, false),
+            KeyCode::End => self.move_queue(isize::MAX / 2, false),
+            KeyCode::Enter => {
+                let owner = self
+                    .queue_index()
+                    .and_then(|i| self.queue.items()[i].owner_id.clone())
+                    .filter(|id| self.snapshot.agent(id).is_some());
+                match owner {
+                    Some(id) => {
+                        self.selected = Some(id);
+                        self.view = View::AgentDetail;
+                    }
+                    None => {
+                        let m = self.i18n.t("queue-no-owner");
+                        self.say(Err(m));
+                    }
+                }
+            }
+            _ => return false,
+        }
+        true
+    }
+
     fn cycle_team(&mut self) {
         let teams = self.full.teams();
         self.team = match &self.team {
@@ -278,6 +350,8 @@ impl App {
         if self.view == View::Teams {
             let n = self.team_order().len().max(1);
             self.team_cursor = (self.team_cursor as isize + delta).rem_euclid(n as isize) as usize;
+        } else if self.view == View::Queue {
+            self.move_queue(delta, true);
         } else {
             self.move_selection(delta);
         }
@@ -538,6 +612,9 @@ impl App {
         if self.view == View::Fleet && self.on_fleet_key(key) {
             return;
         }
+        if self.view == View::Queue && self.on_queue_key(key) {
+            return;
+        }
         match key.code {
             KeyCode::Char(':') => self.input = Some(":".into()),
             KeyCode::Char('>') => self.input = Some(">".into()),
@@ -549,6 +626,7 @@ impl App {
                 self.refilter();
             }
             KeyCode::Char('H') => self.view = View::History,
+            KeyCode::Char('b') => self.view = View::Queue,
             KeyCode::F(12) => self.view = View::History,
             KeyCode::Char('T') => self.cycle_team(),
             KeyCode::Char('g') => self.group_by_team = !self.group_by_team,

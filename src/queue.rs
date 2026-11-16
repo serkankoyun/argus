@@ -199,6 +199,8 @@ struct Builder<'a> {
     agent_now: HashMap<String, String>,
     /// Key of each task's item.
     task_item: HashMap<String, String>,
+    /// Keys of run stages shown by another item (the owner's task at work).
+    alias: HashMap<String, String>,
 }
 
 /// "2" before "10"; other ids by text.
@@ -234,6 +236,7 @@ impl<'a> Builder<'a> {
             agent_wait: HashMap::new(),
             agent_now: HashMap::new(),
             task_item: HashMap::new(),
+            alias: HashMap::new(),
         }
     }
 
@@ -403,10 +406,10 @@ impl<'a> Builder<'a> {
                 None => &r.goal,
             }
             .to_string();
-            // `run.json` lists stages with agent types; without it every stage
-            // is pending, so only the one after the current stage is queued.
+            // Only the next pending stage is queued: later ones wait on it in
+            // turn, and listing the whole pipeline of every run buries the rest.
             let planned = r.stages.iter().any(|st| !st.agent.is_empty());
-            let mut queued_unplanned = false;
+            let mut queued = false;
             for (i, st) in r.stages.iter().enumerate() {
                 if matches!(st.status, StageStatus::Done | StageStatus::Skipped) {
                     continue;
@@ -453,11 +456,14 @@ impl<'a> Builder<'a> {
                     StageStatus::Running | StageStatus::Waiting => {
                         item.lane = Lane::Now;
                         let gkey = owner_place(&mut item);
-                        let has_now = self
+                        let shown = self
                             .owners
                             .iter()
-                            .any(|g| g.key == gkey && g.items.iter().any(|x| x.lane == Lane::Now));
-                        if has_now {
+                            .find(|g| g.key == gkey)
+                            .and_then(|g| g.items.iter().find(|x| x.lane == Lane::Now))
+                            .map(|x| x.key.clone());
+                        if let Some(k) = shown {
+                            self.alias.insert(key, k);
                             continue;
                         }
                         let next = (st.status == StageStatus::Waiting)
@@ -488,24 +494,21 @@ impl<'a> Builder<'a> {
                         if st.key == "merge" && planned && st.agent.is_empty() {
                             continue;
                         }
-                        if !planned && queued_unplanned {
+                        if queued {
                             continue;
                         }
-                        let prev = r.stages[..i]
-                            .iter()
-                            .rev()
-                            .find(|p| p.status != StageStatus::Skipped);
-                        let unfinished = r.stages[..i]
-                            .iter()
-                            .any(|p| !matches!(p.status, StageStatus::Done | StageStatus::Skipped));
-                        queued_unplanned = !planned;
+                        queued = true;
+                        // The latest earlier stage that is not finished.
+                        let prev = r.stages[..i].iter().rev().find(|p| {
+                            !matches!(p.status, StageStatus::Done | StageStatus::Skipped)
+                        });
                         let next = match prev {
-                            Some(p) if unfinished => {
+                            Some(p) => {
                                 item.reason = Reason::WaitsStage(p.key.clone());
                                 item.since = p.since;
                                 Some(Next::Item(format!("run:{}:{}", r.id, p.key)))
                             }
-                            _ => {
+                            None => {
                                 item.reason = Reason::Turn { pos: 0, of: 0 };
                                 None
                             }
@@ -722,7 +725,7 @@ impl<'a> Builder<'a> {
                 .or_else(|| self.agent_now.get(id))
                 .cloned()
         } else {
-            Some(k.to_string())
+            Some(self.alias.get(k).cloned().unwrap_or_else(|| k.to_string()))
         }
     }
 
@@ -771,6 +774,10 @@ impl<'a> Builder<'a> {
                         format!("#{id}")
                     } else if let Some(id) = k.strip_prefix("@agent:") {
                         s.name_of(id).to_string()
+                    } else if let Some(rest) = k.strip_prefix("run:") {
+                        rest.rsplit_once(':')
+                            .map(|(run, st)| format!("{run} · {st}"))
+                            .unwrap_or_else(|| rest.to_string())
                     } else {
                         k.clone()
                     };
@@ -1309,7 +1316,7 @@ mod tests {
     #[test]
     fn chain_follows_tasks_stages_and_agents_to_root() {
         use StageStatus::*;
-        // qa waits for test, test waits for dev, dev's agent waits for b,
+        // test waits for dev, dev's agent waits for b,
         // b waits for the user's approval.
         let mut s = Snapshot {
             taken_at: NOW,
@@ -1343,19 +1350,20 @@ mod tests {
             task("9", Some("x"), TaskStatus::Pending, &["8"]),
         ];
         let q = build(&s);
-        let qa = item(&q, "run:R-20261116-1000-shop-x:qa");
+        // Only the next stage is queued; later ones wait on it in turn.
+        assert!(q.find("run:R-20261116-1000-shop-x:qa").is_none());
+        let qa = item(&q, "run:R-20261116-1000-shop-x:test");
         let keys: Vec<Option<&str>> = qa.chain.iter().map(|l| l.key.as_deref()).collect();
         assert_eq!(
             keys,
             [
-                Some("run:R-20261116-1000-shop-x:test"),
                 Some("run:R-20261116-1000-shop-x:dev"),
                 Some("agent:dev-a"),
                 Some("agent:b"),
                 Some(format!("req:r{}", NOW - 40_000).as_str()),
             ]
         );
-        assert_eq!(qa.root, Some(4));
+        assert_eq!(qa.root, Some(3));
         assert!(qa.root_link().unwrap().reason.on_you());
         let nine = item(&q, "task:~/.claude/tasks/grp/9.json#9");
         let labels: Vec<&str> = nine.chain.iter().map(|l| l.label.as_str()).collect();

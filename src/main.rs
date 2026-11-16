@@ -163,6 +163,7 @@ fn main() -> Result<()> {
     let channels = source::spawn(source, POLL);
     let mut app = App::new(i18n, channels, cli.demo);
     app.debug_keys = cli.debug_keys;
+    app.todos_enabled = cli.demo || !cli.no_todos;
 
     let mut terminal = ratatui::init();
     let _ = execute!(std::io::stdout(), EnableMouseCapture);
