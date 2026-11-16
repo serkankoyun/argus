@@ -7,6 +7,7 @@
 mod app;
 mod i18n;
 mod model;
+mod queue;
 mod source;
 mod ui;
 

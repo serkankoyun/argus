@@ -466,7 +466,53 @@ impl Source for DemoSource {
             ),
         ];
 
+        // Descriptions, files and dates, as Agent Teams task files hold them.
+        let ago = |min: i64| now - min * 60_000;
+        for (i, t) in snap.tasks.iter_mut().enumerate() {
+            t.source = format!("~/.claude/tasks/demo/{}.json", t.id);
+            t.since = ago(15 + 9 * i as i64);
+            let (detail, active) = match t.id.as_str() {
+                "16" => ("Run the whole auth suite against the rate limiter and report failures to lead.", "Running the auth suite"),
+                "18" => ("10 requests per minute per IP on /login, sliding window in Redis; return 429 with Retry-After.", "Adding the rate limiter"),
+                "21" => ("Security and performance review of the session handling change.", "Reviewing PR #231"),
+                "14" => ("Make users.email unique in production; needs a maintenance window.", ""),
+                "15" => ("Copy legacy customer ids into the new id column and keep a mapping table.", ""),
+                "19" => ("Write who changed what on login and token refresh into the audit table.", ""),
+                "22" => ("Tag, changelog and rollout of v2.3 once every review passed.", ""),
+                _ => ("", ""),
+            };
+            t.detail = detail.into();
+            t.active_form = active.into();
+        }
+        for (id, title, detail, min) in [
+            (
+                "23",
+                "rotate the signing keys",
+                "Issue new token signing keys and keep the old ones valid for one day.",
+                40,
+            ),
+            (
+                "24",
+                "friendly 429 error page",
+                "Show a short wait-and-retry page instead of the raw 429 response.",
+                25,
+            ),
+        ] {
+            snap.tasks.push(Task {
+                id: id.into(),
+                title: title.into(),
+                owner: Some("api-dev".into()),
+                status: TaskStatus::Pending,
+                blocked_by: vec![],
+                detail: detail.into(),
+                active_form: String::new(),
+                source: format!("~/.claude/tasks/demo/{id}.json"),
+                since: ago(min),
+            });
+        }
+
         snap.runs = demo_runs(now);
+        snap.todos = demo_todos(now);
 
         push_metrics(&mut self.metrics, el);
         snap.metrics = self.metrics.clone();
@@ -512,6 +558,49 @@ fn push_metrics(m: &mut Metrics, el: Millis) {
     m.ctx_avg.push(53.0 + 4.0 * wave(t, 31.0, 0.0));
 }
 
+/// Fictional `tasks/todo.md` files of two projects, read by the real parser.
+fn demo_todos(now: Millis) -> Vec<TodoFile> {
+    const SHOP_API: &str = "\
+# shop-api
+## Waiting on you
+- [ ] Choose the retry limit for failed payments
+  Three or five attempts; support prefers three.
+  The value goes into config/payments.toml.
+- [ ] Approve the new staging database size
+## Backlog
+- [ ] Add pagination to /orders (waiting on: #19)
+- [ ] Cache product images at the edge
+  - [ ] Measure the hit rate first
+- [ ] Publish the API changelog — blocked by: docs review
+- [x] Move health checks to /healthz
+";
+    const DOCS_SITE: &str = "\
+# docs-site
+## Next
+- [ ] Rewrite the getting started page for the new sign-up flow so that it covers email, single sign-on and invited users in one place
+- [ ] Add a search box
+- [ ] Fix broken links in the API reference
+";
+    [
+        ("shop-api", SHOP_API, 0, 35),
+        ("docs-site", DOCS_SITE, 3, 180),
+    ]
+    .into_iter()
+    .map(|(project, text, omitted, min)| {
+        let (items, _) = super::todos::parse(text);
+        TodoFile {
+            path: format!("~/work/{project}/tasks/todo.md"),
+            root: format!("~/work/{project}"),
+            project: project.into(),
+            host: "prod-1".into(),
+            modified: now - min * 60_000,
+            items,
+            omitted,
+        }
+    })
+    .collect()
+}
+
 /// Runs an orchestrator would keep in `runs/`, at different stages.
 fn demo_runs(now: Millis) -> Vec<Run> {
     use StageStatus::*;
@@ -545,7 +634,7 @@ fn demo_runs(now: Millis) -> Vec<Run> {
                     since: now - ago * min,
                     rounds: 1 + rejections,
                     rejections,
-                    agent: String::new(),
+                    agent: format!("orchestra-{}", demo_role(key)),
                 },
             )
             .collect(),
@@ -620,6 +709,20 @@ fn demo_runs(now: Millis) -> Vec<Run> {
             ],
         ),
     ]
+}
+
+/// Agent type a demo run plans for each stage.
+fn demo_role(stage: &str) -> &'static str {
+    match stage {
+        "analysis" => "analyst",
+        "plan" => "architect",
+        "dev" => "developer",
+        "test" => "test-writer",
+        "qa" => "qa-reviewer",
+        "security" => "security-reviewer",
+        "ci" => "ci-watcher",
+        _ => "release-manager",
+    }
 }
 
 fn task(

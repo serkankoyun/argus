@@ -88,4 +88,5 @@ The maintainer opted in to automatic releases (Nov 14, 2026):
   `events.rs` (lifecycle events), `hook.rs` (`argus hook`), `groups.rs` (team rules),
   `runs.rs` (orchestrator runs), `todos.rs` (`tasks/todo.md` for the Backlog)
 - `src/model.rs` — `Snapshot`, `Agent`, `Message`, `ToolCall`, `Task`, `Host`, `Metrics`
+- `src/queue.rs` — the Backlog model (`queue::build(&Snapshot)`, pure, no ratatui)
 - `src/app.rs` — state, views, keys; `src/ui/` — one module per view
