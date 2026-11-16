@@ -184,14 +184,18 @@ fn fold_char(c: char) -> char {
 
 /// What a marker segment (`waiting on: X`) names, if it is one.
 fn marker_target(segment: &str) -> Option<String> {
-    let seg = segment.trim();
+    // Only the head is looked at until a marker matches, so a long line with
+    // many candidates stays linear.
+    let seg = segment.trim_start();
     for k in WAIT_MARKERS {
-        let n = k.chars().count();
-        let head: String = seg.chars().take(n).map(fold_char).collect();
-        if head != *k {
+        let mut chars = seg.char_indices();
+        let same = k
+            .chars()
+            .all(|kc| chars.next().is_some_and(|(_, c)| fold_char(c) == kc));
+        if !same {
             continue;
         }
-        let rest: String = seg.chars().skip(n).collect();
+        let rest = chars.next().map_or("", |(i, _)| &seg[i..]);
         // A word that only starts like the marker ("engelli") is not one.
         if rest.starts_with(|c: char| c.is_alphanumeric()) {
             continue;
@@ -209,9 +213,14 @@ fn marker_target(segment: &str) -> Option<String> {
 /// `— waiting on: X`, `- blocked by: X`, `; bekliyor: X` at the end.
 /// Returns the text without the marker and what it waits for.
 pub fn split_wait(text: &str) -> (String, String) {
-    let mut from = 0;
-    while let Some(open) = text[from..].find('(').map(|i| i + from) {
-        let Some(close) = text[open..].find(')').map(|i| i + open) else {
+    // Each "(" is paired with the next ")" after it; that ")" is found once
+    // and reused, so the scan stays linear however many "(" there are.
+    let mut close: Option<usize> = None;
+    for (open, _) in text.match_indices('(') {
+        if close.is_none_or(|c| c < open) {
+            close = text[open..].find(')').map(|i| i + open);
+        }
+        let Some(close) = close else {
             break;
         };
         if let Some(what) = marker_target(&text[open + 1..close]) {
@@ -222,7 +231,6 @@ pub fn split_wait(text: &str) -> (String, String) {
             );
             return (rest.trim().to_string(), what);
         }
-        from = open + 1;
     }
     // The first separator followed by a marker: the target may itself
     // contain separators ("Deploy - waiting on: ops - EU").
@@ -667,6 +675,25 @@ mod tests {
                 ("(waiting on: legal)", "legal")
             ]
         );
+    }
+
+    #[test]
+    fn markers_scan_long_lines_in_linear_time() {
+        let started = std::time::Instant::now();
+        let mb = 1 << 20;
+        for text in [
+            "(".repeat(mb),
+            format!("{})", "(".repeat(mb)),
+            "; engelx".repeat(mb / 8),
+            " - (waiting".repeat(mb / 11),
+        ] {
+            assert_eq!(split_wait(&text).1, "");
+        }
+        let items = parse(&format!("- [ ] {}", "(".repeat(mb))).0;
+        assert_eq!(items.len(), 1);
+        // Linear work on a few MiB takes milliseconds; the quadratic scan took
+        // minutes. The bound only separates the two.
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
     }
 
     #[test]

@@ -195,6 +195,10 @@ impl Source for ClaudeSource {
             // No Agent Teams task list: every subagent's assignment is a task.
             snap.tasks = spawn_tasks(&snap);
         }
+        // Lists and ids repeat across machines; the host keeps them apart.
+        for t in &mut snap.tasks {
+            t.host = host.name.clone();
+        }
         let dirs = super::runs::find_dirs(snap.agents.iter().map(|a| a.cwd.as_str()));
         let found = self.runs.read(&dirs, now);
         snap.runs = super::runs::build_runs(found, &snap, &host.name, now);
@@ -1549,6 +1553,7 @@ pub fn spawn_tasks(snap: &Snapshot) -> Vec<Task> {
             active_form: String::new(),
             source: "spawn".into(),
             since: a.started,
+            host: a.host.clone(),
         })
         .collect()
 }
@@ -1629,6 +1634,7 @@ fn read_tasks(root: &Path) -> Vec<Task> {
                 active_form: first_of(&v, &["activeForm"]),
                 source: home_short(&p),
                 since,
+                host: String::new(),
             });
         }
     }

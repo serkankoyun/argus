@@ -508,9 +508,14 @@ impl Source for DemoSource {
                 active_form: String::new(),
                 source: format!("~/.claude/tasks/demo/{id}.json"),
                 since: ago(min),
+                host: String::new(),
             });
         }
 
+        // The task list and the todo files live on the coordinator's machine.
+        for t in &mut snap.tasks {
+            t.host = "prod-1".into();
+        }
         snap.runs = demo_runs(now);
         snap.todos = demo_todos(now);
 

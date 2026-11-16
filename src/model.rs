@@ -286,6 +286,9 @@ pub struct Task {
     /// Since when it exists or last changed.
     #[serde(default)]
     pub since: Millis,
+    /// Machine whose task list it is (lists and ids repeat across machines).
+    #[serde(default)]
+    pub host: String,
 }
 
 /// Open items of one `tasks/todo.md` file.

@@ -204,7 +204,14 @@ fn rows(app: &App) -> Vec<Row> {
     if !q.pool.is_empty() {
         out.push(row(vec![(i.t("queue-pool"), bold().fg(DIM))]));
         for p in &q.pool {
-            out.push(row(vec![(format!(" {}", p.label), bold().fg(FG))]));
+            let label = if !p.tasks {
+                p.label.clone()
+            } else if p.label.trim().is_empty() {
+                i.t("queue-pool-tasks-plain")
+            } else {
+                i.t_args("queue-pool-tasks", &[("group", p.label.trim())])
+            };
+            out.push(row(vec![(format!(" {label}"), bold().fg(FG))]));
             for it in &p.items {
                 item_rows(app, it, idx, ("·", Style::new().fg(DIM)), &mut out);
                 idx += 1;

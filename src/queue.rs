@@ -140,7 +140,11 @@ impl OwnerGroup {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PoolGroup {
+    /// Project name, or the task list name when `tasks` is set (shown as
+    /// "tasks: <label>" in the user's language).
     pub label: String,
+    /// An Agent Teams task list rather than a todo file.
+    pub tasks: bool,
     pub host: String,
     pub items: Vec<QueueItem>,
     /// Items the todo caps left out.
@@ -184,8 +188,8 @@ enum Next {
 enum Place {
     Owner(String),
     You,
-    /// Label and file (empty for task lists).
-    Pool(String, String),
+    /// Label, file (empty for task lists), host and whether it is a task list.
+    Pool(String, String, String, bool),
 }
 
 struct Builder<'a> {
@@ -222,13 +226,48 @@ fn cap(s: &str, n: usize) -> String {
 /// `ME-123` or `menu` do not.
 pub fn names_you(what: &str) -> bool {
     let f = fold(what);
-    f.split(|c: char| !(c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '#')))
+    // Words split at spaces and list punctuation; a word keeps inner `-`, `_`
+    // and `.` (`user-service`, `ME-123`) but not the punctuation around it
+    // (`you.`, `(you)`).
+    f.split(|c: char| c.is_whitespace() || matches!(c, '/' | ',' | ';' | '(' | ')' | '[' | ']'))
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
         .any(|w| {
             matches!(
                 w,
-                "you" | "user" | "me" | "sen" | "sana" | "bana" | "kullanici" | "kullanicidan"
+                "you"
+                    | "user"
+                    | "me"
+                    | "sen"
+                    | "sana"
+                    | "bana"
+                    | "kullanici"
+                    | "kullanicidan"
+                    | "kullaniciya"
             )
         })
+}
+
+/// A key made unique per machine: two hosts may have the same paths.
+fn on_host(key: String, host: &str) -> String {
+    if host.is_empty() {
+        key
+    } else {
+        format!("{key}@{host}")
+    }
+}
+
+/// A label with its machine, when known.
+fn with_host(label: &str, host: &str) -> String {
+    if host.is_empty() {
+        label.to_string()
+    } else {
+        format!("{label} @{host}")
+    }
+}
+
+/// The list a task belongs to, per machine, as used in chain targets.
+fn task_ref(t: &Task) -> String {
+    format!("{}|{}", t.host, task_group(t))
 }
 
 /// The task list a task belongs to (Agent Teams numbers tasks per list).
@@ -255,14 +294,15 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// (agent id, label, team) of an owner written as an agent id or name.
-    fn resolve(&self, owner: &str) -> (Option<String>, String, String) {
-        match self
-            .s
-            .agents
+    /// (agent id, label, team) of an owner written as an agent id or name;
+    /// by name, an agent on `host` comes first.
+    fn resolve(&self, owner: &str, host: &str) -> (Option<String>, String, String) {
+        let agents = &self.s.agents;
+        match agents
             .iter()
             .find(|a| a.id == owner)
-            .or_else(|| self.s.agents.iter().find(|a| a.name == owner))
+            .or_else(|| agents.iter().find(|a| a.name == owner && a.host == host))
+            .or_else(|| agents.iter().find(|a| a.name == owner))
         {
             Some(a) => (Some(a.id.clone()), a.name.clone(), a.team_key()),
             None => (None, owner.to_string(), String::new()),
@@ -292,15 +332,15 @@ impl<'a> Builder<'a> {
                     ..OwnerGroup::default()
                 }),
             },
-            Place::Pool(label, file) => {
-                match self
-                    .pool
-                    .iter_mut()
-                    .find(|p| p.label == label && p.file == file)
-                {
+            Place::Pool(label, file, host, tasks) => {
+                match self.pool.iter_mut().find(|p| {
+                    p.label == label && p.file == file && p.host == host && p.tasks == tasks
+                }) {
                     Some(p) => p.items.push(item),
                     None => self.pool.push(PoolGroup {
                         label,
+                        tasks,
+                        host,
                         file,
                         items: vec![item],
                         ..PoolGroup::default()
@@ -312,15 +352,16 @@ impl<'a> Builder<'a> {
 
     fn tasks(&mut self) {
         let s = self.s;
-        // Blocker ids refer to tasks of the same list.
-        let by_id: HashMap<(String, &str), &Task> = s
+        // Blocker ids refer to tasks of the same list on the same machine.
+        let by_id: HashMap<(&str, String, &str), &Task> = s
             .tasks
             .iter()
-            .map(|t| ((task_group(t), t.id.as_str()), t))
+            .map(|t| ((t.host.as_str(), task_group(t), t.id.as_str()), t))
             .collect();
         for t in s.tasks.iter().filter(|t| t.status != TaskStatus::Done) {
             let group = task_group(t);
-            let find = |b: &str| by_id.get(&(group.clone(), b)).copied();
+            let list = task_ref(t);
+            let find = |b: &str| by_id.get(&(t.host.as_str(), group.clone(), b)).copied();
             let open: Vec<String> = t
                 .blocked_by
                 .iter()
@@ -335,9 +376,9 @@ impl<'a> Builder<'a> {
                     None => (b.clone(), String::new(), String::new()),
                 })
                 .collect();
-            let key = format!("task:{}#{}", t.source, t.id);
+            let key = on_host(format!("task:{}#{}", t.source, t.id), &t.host);
             self.task_item
-                .insert(format!("{group}/{}", t.id), key.clone());
+                .insert(format!("{list}/{}", t.id), key.clone());
             let mut item = QueueItem {
                 key,
                 title: t.title.clone(),
@@ -351,11 +392,7 @@ impl<'a> Builder<'a> {
                 source: format!("task #{}", t.id),
                 origin: Origin::Task(t.id.clone()),
                 location: t.source.clone(),
-                context: if group.is_empty() {
-                    String::new()
-                } else {
-                    format!("tasks: {group}")
-                },
+                context: String::new(),
                 blockers,
                 chain: Vec::new(),
                 root: None,
@@ -363,20 +400,25 @@ impl<'a> Builder<'a> {
             };
             let next = open
                 .first()
-                .map(|b| Next::Item(format!("@task:{group}/{b}")));
+                .map(|b| Next::Item(format!("@task:{list}/{b}")));
             let Some(owner) = t.owner.as_deref().filter(|o| !o.is_empty()) else {
                 if !open.is_empty() {
                     item.lane = Lane::Waiting;
                     item.reason = Reason::WaitsTasks(open);
                 }
                 self.put(
-                    Place::Pool(format!("tasks: {group}"), String::new()),
+                    Place::Pool(
+                        with_host(&group, &t.host),
+                        String::new(),
+                        t.host.clone(),
+                        true,
+                    ),
                     item,
                     next,
                 );
                 continue;
             };
-            let (id, label, team) = self.resolve(owner);
+            let (id, label, team) = self.resolve(owner, &t.host);
             item.owner_id = id.clone();
             item.owner_label = label.clone();
             item.team = team;
@@ -386,9 +428,7 @@ impl<'a> Builder<'a> {
                 item.reason = Reason::Working;
                 if !t.active_form.is_empty() {
                     item.title = t.active_form.clone();
-                    item.context = format!("#{} {} · {}", t.id, t.title, item.context)
-                        .trim_end_matches(" · ")
-                        .to_string();
+                    item.context = format!("#{} {}", t.id, t.title);
                 }
                 if let Some(id) = &id {
                     self.agent_now.insert(id.clone(), item.key.clone());
@@ -465,7 +505,7 @@ impl<'a> Builder<'a> {
                     root: None,
                     holds: 0,
                 };
-                let owner = st.owners.first().map(|o| self.resolve(o));
+                let owner = st.owners.first().map(|o| self.resolve(o, &r.host));
                 // The stage's agent owns it when known, else its planned role.
                 let owner_place = |item: &mut QueueItem| match &owner {
                     Some((id, label, t)) => {
@@ -668,27 +708,16 @@ impl<'a> Builder<'a> {
         let s = self.s;
         let mut files: Vec<_> = s.todos.iter().collect();
         files.sort_by(|a, b| a.project.cmp(&b.project).then(a.path.cmp(&b.path)));
-        let name = |f: &crate::model::TodoFile| {
-            if f.host.is_empty() {
-                f.project.clone()
-            } else {
-                format!("{} @{}", f.project, f.host)
-            }
-        };
+        let name = |f: &crate::model::TodoFile| with_host(&f.project, &f.host);
         for f in files.iter().copied() {
-            // Projects with the same folder name are told apart by their folder.
+            // Projects with the same folder name on one machine are told apart
+            // by their folder.
             let clash = files
                 .iter()
-                .filter(|g| name(g) == name(f) && g.path != f.path)
-                .count()
-                > 0;
+                .any(|g| name(g) == name(f) && (g.path != f.path || g.host != f.host));
             let label = if clash {
                 let root = if f.root.is_empty() { &f.path } else { &f.root };
-                if f.host.is_empty() {
-                    root.clone()
-                } else {
-                    format!("{root} @{}", f.host)
-                }
+                with_host(root, &f.host)
             } else {
                 name(f)
             };
@@ -701,7 +730,7 @@ impl<'a> Builder<'a> {
                     format!("{} › {}", it.section, it.parent)
                 };
                 let mut item = QueueItem {
-                    key: format!("todo:{}:{}", f.path, it.line),
+                    key: on_host(format!("todo:{}:{}", f.path, it.line), &f.host),
                     title: it.title.clone(),
                     detail: it.detail.clone(),
                     owner_id: None,
@@ -730,23 +759,34 @@ impl<'a> Builder<'a> {
                     item.lane = Lane::Waiting;
                     item.reason = Reason::WaitsOn(it.waits_on.clone());
                     let id = it.waits_on.trim().trim_start_matches('#');
+                    // A task of the same machine first.
+                    let is_ref = it.waits_on.trim().starts_with('#');
                     let task = s
                         .tasks
                         .iter()
-                        .find(|t| it.waits_on.trim().starts_with('#') && t.id == id);
+                        .filter(|t| is_ref && t.id == id)
+                        .min_by_key(|t| t.host != f.host);
                     next = Some(match task {
-                        Some(t) => Next::Item(format!("@task:{}/{id}", task_group(t))),
+                        Some(t) => Next::Item(format!("@task:{}/{id}", task_ref(t))),
                         None => Next::End(it.waits_on.clone()),
                     });
                 }
-                self.put(Place::Pool(label.clone(), f.path.clone()), item, next);
+                self.put(
+                    Place::Pool(label.clone(), f.path.clone(), f.host.clone(), false),
+                    item,
+                    next,
+                );
             }
-            if let Some(p) = self.pool.iter_mut().find(|p| p.file == f.path) {
-                p.host = f.host.clone();
+            if let Some(p) = self
+                .pool
+                .iter_mut()
+                .find(|p| !p.tasks && p.file == f.path && p.host == f.host)
+            {
                 p.omitted += f.omitted;
             } else if f.omitted > 0 {
                 self.pool.push(PoolGroup {
                     label,
+                    tasks: false,
                     host: f.host.clone(),
                     items: Vec::new(),
                     omitted: f.omitted,
@@ -935,11 +975,11 @@ impl<'a> Builder<'a> {
         });
         // Todo projects by name (kept in file order inside), task groups last.
         self.pool.sort_by(|a, b| {
-            a.label
-                .starts_with("tasks: ")
-                .cmp(&b.label.starts_with("tasks: "))
+            a.tasks
+                .cmp(&b.tasks)
                 .then(a.label.cmp(&b.label))
                 .then(a.file.cmp(&b.file))
+                .then(a.host.cmp(&b.host))
         });
     }
 
@@ -1138,7 +1178,8 @@ mod tests {
         let q = build(&s);
         assert!(q.owners.is_empty());
         assert_eq!(q.pool.len(), 1);
-        assert_eq!(q.pool[0].label, "tasks: grp");
+        assert_eq!(q.pool[0].label, "grp");
+        assert!(q.pool[0].tasks);
         assert_eq!(q.pool[0].items[0].reason, Reason::Unassigned);
         assert_eq!(
             q.pool[0].items[1].reason,
@@ -1348,6 +1389,11 @@ mod tests {
             "Kullanıcıdan",
             "you, then ops",
             "user (final call)",
+            "you.",
+            "you/ops",
+            "(you)",
+            "kullanıcıya",
+            "Kullanıcıya!",
         ] {
             assert!(names_you(yes), "{yes}");
         }
@@ -1377,6 +1423,75 @@ mod tests {
             q.pool[0].items[0].reason,
             Reason::WaitsOn("user-service".into())
         );
+    }
+
+    #[test]
+    fn same_paths_on_two_hosts_stay_apart() {
+        let file = |host: &str, omitted: u32| TodoFile {
+            host: host.into(),
+            ..todo_file(
+                "p",
+                vec![
+                    todo(1, "one", false),
+                    todo(2, "two", false),
+                    todo(3, "mine", true),
+                ],
+                omitted,
+            )
+        };
+        let on = |t: Task, host: &str| Task {
+            host: host.into(),
+            ..t
+        };
+        let mut a = agent("x-a", "t", AgentState::Working);
+        a.host = "a".into();
+        a.name = "x".into();
+        let mut b = agent("x-b", "t", AgentState::Working);
+        b.host = "b".into();
+        b.name = "x".into();
+        let s = Snapshot {
+            agents: vec![a, b],
+            todos: vec![file("a", 0), file("b", 7)],
+            tasks: vec![
+                // Host a: 3 is done, so 5 is free. Host b: 3 is still open.
+                on(task("3", Some("x"), TaskStatus::Done, &[]), "a"),
+                on(task("5", Some("x"), TaskStatus::Pending, &["3"]), "a"),
+                on(task("3", Some("x"), TaskStatus::Pending, &[]), "b"),
+                on(task("6", None, TaskStatus::Pending, &[]), "a"),
+                on(task("6", None, TaskStatus::Pending, &[]), "b"),
+            ],
+            ..Default::default()
+        };
+        let q = build(&s);
+        let keys: Vec<&str> = q.items().iter().map(|i| i.key.as_str()).collect();
+        let unique: HashSet<&str> = keys.iter().copied().collect();
+        assert_eq!(keys.len(), unique.len(), "{keys:#?}");
+        assert_eq!(q.you.len(), 2);
+        // Every item can be found (and so selected) by its own key.
+        for it in q.items() {
+            assert!(std::ptr::eq(q.find(&it.key).unwrap(), it), "{}", it.key);
+        }
+        let todo_groups: Vec<(&str, &str, u32, usize)> = q
+            .pool
+            .iter()
+            .filter(|p| !p.tasks)
+            .map(|p| (p.label.as_str(), p.host.as_str(), p.omitted, p.items.len()))
+            .collect();
+        assert_eq!(todo_groups, [("p @a", "a", 0, 2), ("p @b", "b", 7, 2)]);
+        let task_groups: Vec<(&str, usize)> = q
+            .pool
+            .iter()
+            .filter(|p| p.tasks)
+            .map(|p| (p.host.as_str(), p.items.len()))
+            .collect();
+        assert_eq!(task_groups, [("a", 1), ("b", 1)]);
+        // Blockers do not cross machines, and owners resolve on their own host.
+        let five = item(&q, "task:~/.claude/tasks/grp/5.json#5@a");
+        assert!(matches!(five.reason, Reason::Turn { .. }), "{five:?}");
+        assert_eq!(five.owner_id.as_deref(), Some("x-a"));
+        assert_eq!(five.blockers[0].2, "task-done");
+        let three_b = item(&q, "task:~/.claude/tasks/grp/3.json#3@b");
+        assert_eq!(three_b.owner_id.as_deref(), Some("x-b"));
     }
 
     #[test]
