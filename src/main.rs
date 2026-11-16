@@ -8,6 +8,8 @@ mod app;
 mod i18n;
 mod model;
 mod queue;
+#[cfg(test)]
+mod queue_view_tests;
 mod source;
 mod ui;
 
