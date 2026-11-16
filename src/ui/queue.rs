@@ -5,7 +5,7 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use super::common::*;
@@ -150,6 +150,14 @@ fn rows(app: &App) -> Vec<Row> {
     let q = &app.queue;
     let mut out = Vec::new();
     let mut idx = 0;
+    // What waits on the user comes first: it is what the user can act on.
+    if !q.you.is_empty() {
+        out.push(row(vec![(i.t("queue-you"), bold().fg(AMBER))]));
+        for it in &q.you {
+            item_rows(app, it, idx, ("▲", Style::new().fg(AMBER)), &mut out);
+            idx += 1;
+        }
+    }
     for g in &q.owners {
         let mut head = vec![(g.label.clone(), bold().fg(ACCENT))];
         if !g.team.is_empty() {
@@ -190,13 +198,6 @@ fn rows(app: &App) -> Vec<Row> {
                 Lane::Waiting => ("◐", Style::new().fg(AMBER)),
             };
             item_rows(app, it, idx, glyph, &mut out);
-            idx += 1;
-        }
-    }
-    if !q.you.is_empty() {
-        out.push(row(vec![(i.t("queue-you"), bold().fg(AMBER))]));
-        for it in &q.you {
-            item_rows(app, it, idx, ("▲", Style::new().fg(AMBER)), &mut out);
             idx += 1;
         }
     }
@@ -336,7 +337,8 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &App, it: Option<&QueueItem>)
         return;
     };
     let label = |k: &str| Span::styled(format!("{}: ", i.t(k)), Style::new().fg(DIM));
-    let mut lines = vec![Line::from(Span::styled(it.title.clone(), bold().fg(FG)))];
+    // Each entry is wrapped with its continuation lines indented by two.
+    let mut lines: Vec<Line> = vec![Line::from(Span::styled(it.title.clone(), bold().fg(FG)))];
     let owner = if it.owner_label.is_empty() {
         "—".to_string()
     } else if it.team.is_empty() {
@@ -418,10 +420,123 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &App, it: Option<&QueueItem>)
             Span::styled(it.location.clone(), Style::new().fg(CYAN)),
         ]));
     }
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .block(block),
-        area,
-    );
+    let width = block.inner(area).width as usize;
+    let first = lines.remove(0);
+    let mut wrapped = wrap_line(first, width, 0);
+    for l in lines {
+        wrapped.extend(wrap_line(l, width, 2));
+    }
+    frame.render_widget(Paragraph::new(wrapped).block(block), area);
+}
+
+/// Splits a line into lines of at most `width` columns at spaces (inside
+/// words only when a word is longer than a line); continuation lines start
+/// with `indent` spaces so they stay under their field.
+pub fn wrap_line(line: Line<'_>, width: usize, indent: usize) -> Vec<Line<'static>> {
+    let width = width.max(1);
+    let indent = indent.min(width.saturating_sub(1));
+    // Words and the spaces between them, each with its style.
+    let mut tokens: Vec<(String, Style)> = Vec::new();
+    for span in &line.spans {
+        let mut cur = String::new();
+        for c in span.content.chars() {
+            if (c == ' ') != cur.ends_with(' ') && !cur.is_empty() {
+                tokens.push((std::mem::take(&mut cur), span.style));
+            }
+            cur.push(c);
+        }
+        if !cur.is_empty() {
+            tokens.push((cur, span.style));
+        }
+    }
+    let w = |t: &str| Span::raw(t).width();
+    let mut out: Vec<Line<'static>> = Vec::new();
+    let mut cur: Vec<Span<'static>> = Vec::new();
+    let mut used = 0;
+    let mut start = 0;
+    let mut finish = |cur: &mut Vec<Span<'static>>, used: &mut usize| {
+        // No trailing space at a break.
+        if cur.len() > 1 && cur.last().is_some_and(|s| s.content.trim().is_empty()) {
+            cur.pop();
+        }
+        out.push(Line::from(std::mem::take(cur)));
+        cur.push(Span::raw(" ".repeat(indent)));
+        *used = indent;
+    };
+    for (text, style) in tokens {
+        let tw = w(&text);
+        if text.starts_with(' ') {
+            // Spaces at a break vanish; leading spaces of a line stay.
+            if used + tw <= width {
+                cur.push(Span::styled(text, style));
+                used += tw;
+            } else if used > start {
+                finish(&mut cur, &mut used);
+                start = indent;
+            }
+            continue;
+        }
+        if used + tw > width && used > start {
+            finish(&mut cur, &mut used);
+            start = indent;
+        }
+        // A word longer than a whole line is cut into pieces.
+        let mut piece = String::new();
+        for c in text.chars() {
+            let cw = w(c.encode_utf8(&mut [0; 4]));
+            if used + w(&piece) + cw > width && (used > start || !piece.is_empty()) {
+                if !piece.is_empty() {
+                    used += w(&piece);
+                    cur.push(Span::styled(std::mem::take(&mut piece), style));
+                }
+                finish(&mut cur, &mut used);
+                start = indent;
+            }
+            piece.push(c);
+        }
+        used += w(&piece);
+        cur.push(Span::styled(piece, style));
+    }
+    out.push(Line::from(cur));
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn texts(lines: &[Line]) -> Vec<String> {
+        lines.iter().map(|l| l.to_string()).collect()
+    }
+
+    #[test]
+    fn wrapped_lines_keep_the_field_indent() {
+        let l = Line::from(vec![
+            Span::raw("Description: "),
+            Span::raw("one two three four five six"),
+        ]);
+        assert_eq!(
+            texts(&wrap_line(l, 16, 2)),
+            ["Description: one", "  two three four", "  five six"]
+        );
+        let body = Line::raw("  alpha beta gamma delta");
+        assert_eq!(
+            texts(&wrap_line(body, 12, 2)),
+            ["  alpha beta", "  gamma", "  delta"]
+        );
+        // Long words are cut; nothing is ever wider than the width.
+        let long = Line::raw("x".repeat(25));
+        let out = wrap_line(long, 10, 2);
+        assert!(out.iter().all(|l| l.width() <= 10), "{:?}", texts(&out));
+        assert_eq!(
+            out.iter()
+                .map(|l| l.to_string().trim().len())
+                .sum::<usize>(),
+            25
+        );
+        assert_eq!(
+            texts(&wrap_line(Line::raw("short"), 0, 2)),
+            ["s", "h", "o", "r", "t"]
+        );
+    }
 }

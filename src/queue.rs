@@ -3,8 +3,8 @@
 //!
 //! Sources: Agent Teams tasks (or subagent assignments), orchestrator run
 //! stages, open requests to the user and waiting agents, and `tasks/todo.md`
-//! items. Work with an owner is grouped per owner as NOW → QUEUED → WAITING;
-//! then come the items waiting on the user, then the unassigned pool. Each
+//! items. The items waiting on the user come first; then work with an owner,
+//! grouped per owner as NOW → QUEUED → WAITING; then the unassigned pool. Each
 //! waiting item also carries the chain of what it waits on, down to the root.
 
 use std::cmp::Ordering;
@@ -15,7 +15,8 @@ use crate::model::{
 };
 use crate::source::todos::fold;
 
-/// Items kept at most (in display order; the pool is cut first).
+/// Items kept at most (in display order, so the pool is cut first and what
+/// waits on the user last).
 pub const MAX_QUEUE_ITEMS: usize = 1000;
 /// Links followed at most when explaining why an item waits.
 pub const MAX_CHAIN: usize = 8;
@@ -157,10 +158,9 @@ pub struct Queue {
 impl Queue {
     /// Every item in display order.
     pub fn items(&self) -> Vec<&QueueItem> {
-        self.owners
+        self.you
             .iter()
-            .flat_map(|g| &g.items)
-            .chain(&self.you)
+            .chain(self.owners.iter().flat_map(|g| &g.items))
             .chain(self.pool.iter().flat_map(|p| &p.items))
             .collect()
     }
@@ -184,7 +184,8 @@ enum Next {
 enum Place {
     Owner(String),
     You,
-    Pool(String),
+    /// Label and file (empty for task lists).
+    Pool(String, String),
 }
 
 struct Builder<'a> {
@@ -217,12 +218,26 @@ fn cap(s: &str, n: usize) -> String {
     s.trim().chars().take(n).collect()
 }
 
-/// Whether a todo marker names the user.
-fn names_you(what: &str) -> bool {
+/// Whether a todo marker names the user, by whole words: `user-service`,
+/// `ME-123` or `menu` do not.
+pub fn names_you(what: &str) -> bool {
     let f = fold(what);
-    f.split(|c: char| !c.is_alphanumeric())
-        .any(|w| matches!(w, "you" | "user" | "me" | "sen" | "senden" | "kullanici"))
-        || f.contains("kullanicidan")
+    f.split(|c: char| !(c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '#')))
+        .any(|w| {
+            matches!(
+                w,
+                "you" | "user" | "me" | "sen" | "sana" | "bana" | "kullanici" | "kullanicidan"
+            )
+        })
+}
+
+/// The task list a task belongs to (Agent Teams numbers tasks per list).
+fn task_group(t: &Task) -> String {
+    t.source
+        .rsplit(['/', '\\'])
+        .nth(1)
+        .unwrap_or(t.source.as_str())
+        .to_string()
 }
 
 impl<'a> Builder<'a> {
@@ -277,47 +292,52 @@ impl<'a> Builder<'a> {
                     ..OwnerGroup::default()
                 }),
             },
-            Place::Pool(label) => match self.pool.iter_mut().find(|p| p.label == label) {
-                Some(p) => p.items.push(item),
-                None => self.pool.push(PoolGroup {
-                    label,
-                    items: vec![item],
-                    ..PoolGroup::default()
-                }),
-            },
+            Place::Pool(label, file) => {
+                match self
+                    .pool
+                    .iter_mut()
+                    .find(|p| p.label == label && p.file == file)
+                {
+                    Some(p) => p.items.push(item),
+                    None => self.pool.push(PoolGroup {
+                        label,
+                        file,
+                        items: vec![item],
+                        ..PoolGroup::default()
+                    }),
+                }
+            }
         }
     }
 
     fn tasks(&mut self) {
         let s = self.s;
-        let by_id: HashMap<&str, &Task> = s.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
+        // Blocker ids refer to tasks of the same list.
+        let by_id: HashMap<(String, &str), &Task> = s
+            .tasks
+            .iter()
+            .map(|t| ((task_group(t), t.id.as_str()), t))
+            .collect();
         for t in s.tasks.iter().filter(|t| t.status != TaskStatus::Done) {
+            let group = task_group(t);
+            let find = |b: &str| by_id.get(&(group.clone(), b)).copied();
             let open: Vec<String> = t
                 .blocked_by
                 .iter()
-                .filter(|b| {
-                    by_id
-                        .get(b.as_str())
-                        .is_none_or(|x| x.status != TaskStatus::Done)
-                })
+                .filter(|b| find(b).is_none_or(|x| x.status != TaskStatus::Done))
                 .cloned()
                 .collect();
             let blockers = t
                 .blocked_by
                 .iter()
-                .map(|b| match by_id.get(b.as_str()) {
+                .map(|b| match find(b) {
                     Some(x) => (b.clone(), x.title.clone(), x.status.key().to_string()),
                     None => (b.clone(), String::new(), String::new()),
                 })
                 .collect();
             let key = format!("task:{}#{}", t.source, t.id);
-            self.task_item.insert(t.id.clone(), key.clone());
-            let group = t
-                .source
-                .rsplit(['/', '\\'])
-                .nth(1)
-                .unwrap_or(t.source.as_str())
-                .to_string();
+            self.task_item
+                .insert(format!("{group}/{}", t.id), key.clone());
             let mut item = QueueItem {
                 key,
                 title: t.title.clone(),
@@ -341,13 +361,19 @@ impl<'a> Builder<'a> {
                 root: None,
                 holds: 0,
             };
-            let next = open.first().map(|b| Next::Item(format!("@task:{b}")));
+            let next = open
+                .first()
+                .map(|b| Next::Item(format!("@task:{group}/{b}")));
             let Some(owner) = t.owner.as_deref().filter(|o| !o.is_empty()) else {
                 if !open.is_empty() {
                     item.lane = Lane::Waiting;
                     item.reason = Reason::WaitsTasks(open);
                 }
-                self.put(Place::Pool(format!("tasks: {group}")), item, next);
+                self.put(
+                    Place::Pool(format!("tasks: {group}"), String::new()),
+                    item,
+                    next,
+                );
                 continue;
             };
             let (id, label, team) = self.resolve(owner);
@@ -601,10 +627,17 @@ impl<'a> Builder<'a> {
             }
             let key = format!("agent:{}", a.id);
             self.agent_wait.insert(a.id.clone(), key.clone());
-            let title = match task_text(&a.task) {
-                "" => a.now.clone(),
-                t => t.to_string(),
-            };
+            // Its task, else what it is doing, else its name.
+            let title = [
+                task_text(&a.task),
+                a.now.trim(),
+                a.name.as_str(),
+                a.id.as_str(),
+            ]
+            .into_iter()
+            .find(|t| !t.trim().is_empty())
+            .unwrap_or_default()
+            .to_string();
             self.put(
                 Place::Owner(format!("agent:{}", a.id)),
                 QueueItem {
@@ -635,11 +668,29 @@ impl<'a> Builder<'a> {
         let s = self.s;
         let mut files: Vec<_> = s.todos.iter().collect();
         files.sort_by(|a, b| a.project.cmp(&b.project).then(a.path.cmp(&b.path)));
-        for f in files {
-            let label = if f.host.is_empty() {
+        let name = |f: &crate::model::TodoFile| {
+            if f.host.is_empty() {
                 f.project.clone()
             } else {
                 format!("{} @{}", f.project, f.host)
+            }
+        };
+        for f in files.iter().copied() {
+            // Projects with the same folder name are told apart by their folder.
+            let clash = files
+                .iter()
+                .filter(|g| name(g) == name(f) && g.path != f.path)
+                .count()
+                > 0;
+            let label = if clash {
+                let root = if f.root.is_empty() { &f.path } else { &f.root };
+                if f.host.is_empty() {
+                    root.clone()
+                } else {
+                    format!("{root} @{}", f.host)
+                }
+            } else {
+                name(f)
             };
             for it in &f.items {
                 let context = if it.parent.is_empty() {
@@ -679,21 +730,20 @@ impl<'a> Builder<'a> {
                     item.lane = Lane::Waiting;
                     item.reason = Reason::WaitsOn(it.waits_on.clone());
                     let id = it.waits_on.trim().trim_start_matches('#');
-                    next = Some(
-                        if it.waits_on.trim().starts_with('#') && s.tasks.iter().any(|t| t.id == id)
-                        {
-                            Next::Item(format!("@task:{id}"))
-                        } else {
-                            Next::End(it.waits_on.clone())
-                        },
-                    );
+                    let task = s
+                        .tasks
+                        .iter()
+                        .find(|t| it.waits_on.trim().starts_with('#') && t.id == id);
+                    next = Some(match task {
+                        Some(t) => Next::Item(format!("@task:{}/{id}", task_group(t))),
+                        None => Next::End(it.waits_on.clone()),
+                    });
                 }
-                self.put(Place::Pool(label.clone()), item, next);
+                self.put(Place::Pool(label.clone(), f.path.clone()), item, next);
             }
-            if let Some(p) = self.pool.iter_mut().find(|p| p.label == label) {
+            if let Some(p) = self.pool.iter_mut().find(|p| p.file == f.path) {
                 p.host = f.host.clone();
                 p.omitted += f.omitted;
-                p.file = f.path.clone();
             } else if f.omitted > 0 {
                 self.pool.push(PoolGroup {
                     label,
@@ -771,7 +821,7 @@ impl<'a> Builder<'a> {
                 let Some(key) = self.target(k).filter(|k| all.contains_key(k)) else {
                     // Something Argus does not see: an unknown task or agent.
                     let label = if let Some(id) = k.strip_prefix("@task:") {
-                        format!("#{id}")
+                        format!("#{}", id.rsplit('/').next().unwrap_or(id))
                     } else if let Some(id) = k.strip_prefix("@agent:") {
                         s.name_of(id).to_string()
                     } else if let Some(rest) = k.strip_prefix("run:") {
@@ -889,6 +939,7 @@ impl<'a> Builder<'a> {
                 .starts_with("tasks: ")
                 .cmp(&b.label.starts_with("tasks: "))
                 .then(a.label.cmp(&b.label))
+                .then(a.file.cmp(&b.file))
         });
     }
 
@@ -898,11 +949,12 @@ impl<'a> Builder<'a> {
             items.truncate(left);
             left -= items.len();
         };
+        // Display order: what waits on the user first, the pool is cut first.
+        take(&mut self.you);
         for g in &mut self.owners {
             take(&mut g.items);
         }
         self.owners.retain(|g| !g.items.is_empty());
-        take(&mut self.you);
         for p in &mut self.pool {
             let before = p.items.len();
             take(&mut p.items);
