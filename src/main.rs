@@ -301,7 +301,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 Event::Key(key) if key.kind != KeyEventKind::Release => app.on_key(key),
                 Event::Mouse(m) => match m.kind {
                     MouseEventKind::Down(MouseButton::Left) => {
-                        if let Some(i) = ui::tab_at(app, m.row, m.column) {
+                        let width = terminal.size()?.width;
+                        if let Some(i) = ui::tab_at(app, width, m.row, m.column) {
                             app.set_view_index(i);
                         }
                     }

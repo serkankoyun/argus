@@ -512,7 +512,6 @@ fn ac2_done_blockers_release_unknown_and_open_ones_hold() {
 /// Agent Teams numbers tasks per team list (`~/.claude/tasks/<group>/`), so two
 /// groups both have a task "3". A blocker id refers to the task of its own group.
 #[test]
-#[ignore = "defect D1: blocker ids are resolved across all task groups"]
 fn ac2_blocker_ids_resolve_within_their_own_task_group() {
     let s = Snapshot {
         agents: vec![
@@ -865,7 +864,6 @@ fn ac5_discovery_respects_folder_boundaries_depth_and_count() {
 }
 
 #[test]
-#[ignore = "defect D4: projects with the same folder name share one pool group"]
 fn ac5_projects_with_the_same_folder_name_stay_apart() {
     let s = Snapshot {
         todos: vec![
@@ -969,7 +967,6 @@ fn a2_markers_on_continuation_lines() {
 }
 
 #[test]
-#[ignore = "defect D3: an open box whose text is only a wait marker is dropped"]
 fn a2_marker_only_item_is_not_lost() {
     let (items, _) = parse("- [ ] (blocked by: #12)\n- [ ] **(waiting on: legal)**\n");
     assert_eq!(items.len(), 2, "both open boxes must appear: {items:?}");
@@ -1234,7 +1231,6 @@ fn ac6_every_item_is_descriptive_and_row_matches_detail() {
 }
 
 #[test]
-#[ignore = "defect D5: a waiting agent without task or now text gets an empty title"]
 fn ac6_waiting_agent_without_task_text_still_has_a_title() {
     let mut a = agent("solo-a", "t", AgentState::Waiting, "/w/t");
     a.task = String::new();
@@ -1587,7 +1583,6 @@ fn ac8_enter_without_owner_says_so_and_stays() {
 /// The queue cap must not hide what waits on the user behind a long list of
 /// owned work: approvals are the items the user acts on.
 #[test]
-#[ignore = "defect D2: MAX_QUEUE_ITEMS cuts Waiting on you before the pool"]
 fn cap_keeps_items_waiting_on_you() {
     let mut s = Snapshot {
         taken_at: NOW,

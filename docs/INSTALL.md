@@ -313,11 +313,12 @@ map shows task dependencies as before.
 
 ### Backlog and tasks/todo.md
 
-The Backlog (`b`) lists work, not agents. Per agent (or planned role) it shows **NOW** (in
-progress), **QUEUED** (its turn: `2 of 3`, or the run stage it waits for) and **WAITING** (on
-tasks `#3`, on another agent, on you, or rejected/blocked at a stage); then **Waiting on you**
-(open approvals and questions, and todo items that wait for your decision, sorted by how
-many items each one holds), then the **Unassigned pool**. Each row says why it waits, for
+The Backlog (`b`) lists work, not agents. It starts with **Waiting on you** (open approvals
+and questions, and todo items that wait for your decision, sorted by how many items each one
+holds). Then, per agent (or planned role), **NOW** (in progress), **QUEUED** (its turn:
+`2 of 3`, or the run stage it waits for) and **WAITING** (on tasks `#3`, on another agent, on
+you, or rejected/blocked at a stage); last the **Unassigned pool** (one group per project
+folder; folders with the same name are shown by path). Each row says why it waits, for
 how long, where it comes from and who owns it; when a wait goes through other items, the row
 ends with its root (`root: ▲ db-dev: Bash: …` means your approval unblocks it). The panel on
 the right (below on narrow screens) shows the full title, description, context, source path,
@@ -354,10 +355,12 @@ Markdown and read leniently:
   `açık soru`. Bare words such as "Decisions" or "Kararlar" do not count.
 - **Wait markers:** an item says what it waits for with `(waiting on: X)`,
   `(waiting for: X)`, `(blocked by: X)`, `(bekliyor: X)`, `(beklenen: X)` or `(engel: X)`
-  anywhere in its text, or the same without parentheses at the end after ` — `, ` - ` or
-  `;` (also alone on the first indented line). The marker is removed from the title.
-  `X` naming you (`you`, `user`, `me`, `sen`, `kullanıcı`) puts the item under "Waiting on
-  you"; `#12` links it to Agent Teams task 12.
+  anywhere in its text, or the same without parentheses after ` — `, ` - ` or `;` (the first
+  such marker counts, so `X` may itself contain ` - `; also alone on the first indented
+  line). The marker is removed from the title; an item that is only a marker keeps it as
+  its title. `X` naming you as a whole word (`you`, `user`, `me`, `sen`, `sana`, `bana`,
+  `kullanıcı`, `kullanıcıdan`; not `user-service` or `menu`) puts the item under "Waiting
+  on you"; `#12` links it to Agent Teams task 12.
 - **Limits:** the first 1 MiB of a file, 200 open items per file and 500 in total
   ("waiting on you" items are kept first); what is left out is counted. Files unchanged for
   30 days are skipped; files are parsed again only when they change.

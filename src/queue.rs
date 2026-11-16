@@ -1336,6 +1336,50 @@ mod tests {
     }
 
     #[test]
+    fn markers_name_you_by_whole_words_only() {
+        for yes in [
+            "you",
+            "the user",
+            "Me",
+            "SEN",
+            "sana",
+            "bana",
+            "kullanıcı",
+            "Kullanıcıdan",
+            "you, then ops",
+            "user (final call)",
+        ] {
+            assert!(names_you(yes), "{yes}");
+        }
+        for no in [
+            "user-service",
+            "ME-123",
+            "menu",
+            "users",
+            "youtube",
+            "sender",
+            "bananas",
+            "kullanicilar",
+            "#12",
+            "legal review",
+        ] {
+            assert!(!names_you(no), "{no}");
+        }
+        let mut svc = todo(2, "deploy", false);
+        svc.waits_on = "user-service".into();
+        let s = Snapshot {
+            todos: vec![todo_file("p", vec![svc], 0)],
+            ..Default::default()
+        };
+        let q = build(&s);
+        assert!(q.you.is_empty());
+        assert_eq!(
+            q.pool[0].items[0].reason,
+            Reason::WaitsOn("user-service".into())
+        );
+    }
+
+    #[test]
     fn todo_wait_reason_and_link() {
         let mut waits = todo(2, "ship", false);
         waits.waits_on = "#4".into();

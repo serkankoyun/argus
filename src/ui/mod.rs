@@ -134,31 +134,61 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// Tab titles as drawn in the view bar.
-fn tab_titles(app: &App) -> Vec<String> {
-    View::ALL
+/// Columns the view bar needs for these titles (" title " plus dividers).
+fn tabs_width(titles: &[String]) -> usize {
+    titles
         .iter()
-        .enumerate()
-        .map(|(i, v)| {
-            let n = match i {
-                9 => "0".to_string(),
-                10 => "t".to_string(),
-                11 => "H".to_string(),
-                12 => "b".to_string(),
-                _ => (i + 1).to_string(),
-            };
-            format!("{n} {}", app.i18n.t(v.key()))
+        .map(|t| Line::raw(t.as_str()).width() + 3)
+        .sum::<usize>()
+        - 1
+}
+
+/// Tab titles as drawn in a view bar `width` columns wide. When the full
+/// names do not fit, the other names are shortened (the selected view and
+/// the Backlog keep theirs), down to the bare keys.
+fn tab_titles(app: &App, width: u16) -> Vec<String> {
+    let keys: Vec<String> = (0..View::ALL.len())
+        .map(|i| match i {
+            9 => "0".to_string(),
+            10 => "t".to_string(),
+            11 => "H".to_string(),
+            12 => "b".to_string(),
+            _ => (i + 1).to_string(),
         })
-        .collect()
+        .collect();
+    let names: Vec<String> = View::ALL.iter().map(|v| app.i18n.t(v.key())).collect();
+    let keep = |i: usize| i == app.view.index() || View::ALL[i] == View::Queue;
+    let titles = |cap: Option<usize>| -> Vec<String> {
+        keys.iter()
+            .zip(&names)
+            .enumerate()
+            .map(|(i, (k, n))| match cap {
+                Some(0) if !keep(i) => k.clone(),
+                Some(c) if !keep(i) => format!("{k} {}", trunc(n, c)),
+                _ => format!("{k} {n}"),
+            })
+            .collect()
+    };
+    let full = titles(None);
+    let width = width as usize;
+    if tabs_width(&full) <= width {
+        return full;
+    }
+    let longest = names.iter().map(|n| n.chars().count()).max().unwrap_or(0);
+    (3..longest)
+        .rev()
+        .map(|c| titles(Some(c)))
+        .find(|t| tabs_width(t) <= width)
+        .unwrap_or_else(|| titles(Some(0)))
 }
 
 /// Which tab is at terminal column `col` of row `row` (the view bar is row 1).
-pub fn tab_at(app: &App, row: u16, col: u16) -> Option<usize> {
+pub fn tab_at(app: &App, width: u16, row: u16, col: u16) -> Option<usize> {
     if row != 1 {
         return None;
     }
     let mut x = 0u16;
-    for (i, t) in tab_titles(app).iter().enumerate() {
+    for (i, t) in tab_titles(app, width).iter().enumerate() {
         // Each tab is " title " followed by a one-column divider.
         let w = Line::raw(t.as_str()).width() as u16 + 2;
         if col >= x && col < x + w {
@@ -170,7 +200,7 @@ pub fn tab_at(app: &App, row: u16, col: u16) -> Option<usize> {
 }
 
 fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
-    let titles = tab_titles(app).into_iter().map(Line::from);
+    let titles = tab_titles(app, area.width).into_iter().map(Line::from);
     let tabs = Tabs::new(titles)
         .select(app.view.index())
         .style(Style::new().fg(DIM))
@@ -410,6 +440,35 @@ mod tests {
         app.input = Some(":view backlog".into());
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.view, View::Queue);
+    }
+
+    #[test]
+    fn tabs_fit_and_keep_backlog_at_120_columns() {
+        use ratatui::crossterm::event::KeyCode;
+        for lang in ["en", "tr"] {
+            let mut app = app_with(DemoSource::new(lang).poll());
+            app.view = View::Overview;
+            let name = app.i18n.t("view-queue");
+            for w in [120u16, 140, 200] {
+                let s = screen(&app, w, 4);
+                let bar = s.lines().nth(1).unwrap();
+                assert!(bar.contains(&format!("b {name}")), "{lang} {w}: {bar}");
+                let selected = app.i18n.t("view-overview");
+                assert!(bar.contains(&format!("1 {selected}")), "{lang} {w}: {bar}");
+                // Every tab is still there, and clicks land on the drawn tabs.
+                let titles = tab_titles(&app, w);
+                assert_eq!(titles.len(), View::ALL.len());
+                assert!(tabs_width(&titles) <= w as usize, "{lang} {w}");
+                let col = bar.find(&format!("b {name}")).unwrap();
+                let col = bar[..col].chars().count() as u16;
+                assert_eq!(tab_at(&app, w, 1, col), Some(12), "{lang} {w}");
+            }
+            // Full names when they fit.
+            assert!(screen(&app, 220, 4).contains(&app.i18n.t("view-taskmap")));
+            press(&mut app, KeyCode::Char('9'));
+            let bar = screen(&app, 120, 4);
+            assert!(bar.contains(&app.i18n.t("view-taskmap")), "{lang}: {bar}");
+        }
     }
 
     #[test]

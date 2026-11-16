@@ -22,7 +22,7 @@ conversation between your agents.
 ## Features (planned for v1.0)
 
 - **Teams** — the coordinator on top, one card per busy team with its roles (which are at work now) and each agent's task and activity, finished teams on one line, cross-team requests; `t` opens it (`Enter` filters every view to the chosen team). Setups with configured teams start on this view
-- **Backlog** — the work queue, not just the agents: per agent what runs now, what is queued (its turn) and what waits and why; what waits on you, with how many items each answer unblocks; and the unassigned pool from `tasks/todo.md`. Every item says what it is, why it waits, on whom, since when and where it comes from; `b` opens it
+- **Backlog** — the work queue, not just the agents: first what waits on you, with how many items each answer unblocks; then per agent what runs now, what is queued (its turn) and what waits and why; and the unassigned pool from `tasks/todo.md`. Every item says what it is, why it waits, on whom, since when and where it comes from; `b` opens it
 - **Ten views, one keystroke apart** — switch instantly with `1`–`0` or `tab`; the selected agent follows you
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
@@ -59,7 +59,7 @@ conversation between your agents.
 | 0 | Pair | Two agents side by side, their conversation in between |
 | t | Teams | Coordinator, a card per busy team, cross-team requests |
 | H | History | Finished agents with duration, cost and outcome |
-| b | Backlog | Per agent NOW / QUEUED / WAITING with the reason and the root of each wait, what waits on you, the unassigned pool from `tasks/todo.md` |
+| b | Backlog | What waits on you first, then per agent NOW / QUEUED / WAITING with the reason and the root of each wait, then the unassigned pool from `tasks/todo.md` |
 
 ## Install
 

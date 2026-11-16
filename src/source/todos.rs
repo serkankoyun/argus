@@ -224,11 +224,16 @@ pub fn split_wait(text: &str) -> (String, String) {
         }
         from = open + 1;
     }
-    for sep in [" — ", " - ", ";"] {
-        if let Some(i) = text.rfind(sep) {
-            if let Some(what) = marker_target(&text[i + sep.len()..]) {
-                return (text[..i].trim().to_string(), what);
-            }
+    // The first separator followed by a marker: the target may itself
+    // contain separators ("Deploy - waiting on: ops - EU").
+    let mut cuts: Vec<(usize, usize)> = [" — ", " - ", ";"]
+        .iter()
+        .flat_map(|sep| text.match_indices(sep).map(|(i, m)| (i, m.len())))
+        .collect();
+    cuts.sort_unstable();
+    for (i, len) in cuts {
+        if let Some(what) = marker_target(&text[i + len..]) {
+            return (text[..i].trim().to_string(), what);
         }
     }
     (text.to_string(), String::new())
@@ -293,7 +298,10 @@ pub fn parse(text: &str) -> (Vec<TodoItem>, u32) {
             boxes.pop();
         }
         if let Some((open, text)) = checkbox(rest) {
-            let (title, waits_on) = split_wait(&clean(text));
+            let cleaned = clean(text);
+            let (title, waits_on) = split_wait(&cleaned);
+            // An item that is nothing but a marker keeps the marker as its title.
+            let title = if title.is_empty() { cleaned } else { title };
             let parent = boxes
                 .last()
                 .map(|b| cut(&b.title, MAX_PARENT))
@@ -635,6 +643,30 @@ mod tests {
         );
         let (_, long) = split_wait(&format!("x (waiting on: {})", "y".repeat(400)));
         assert_eq!(long.chars().count(), 120);
+    }
+
+    #[test]
+    fn first_trailing_marker_wins_and_marker_only_items_stay() {
+        assert_eq!(
+            split_wait("Deploy - waiting on: ops - EU"),
+            ("Deploy".to_string(), "ops - EU".to_string())
+        );
+        assert_eq!(
+            split_wait("A - B; blocked by: x; y"),
+            ("A - B".to_string(), "x; y".to_string())
+        );
+        let (items, _) = parse("- [ ] (blocked by: #12)\n- [ ] **(waiting on: legal)**\n");
+        let got: Vec<(&str, &str)> = items
+            .iter()
+            .map(|i| (i.title.as_str(), i.waits_on.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("(blocked by: #12)", "#12"),
+                ("(waiting on: legal)", "legal")
+            ]
+        );
     }
 
     #[test]
