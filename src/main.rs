@@ -50,6 +50,15 @@ struct Cli {
     #[arg(long)]
     no_local: bool,
 
+    /// Do not read tasks/todo.md files on this machine (e.g. while sharing the screen).
+    #[arg(long, global = true)]
+    no_todos: bool,
+
+    /// Ask remote hosts for their tasks/todo.md items (off by default: the
+    /// titles cross the network).
+    #[arg(long, global = true)]
+    remote_todos: bool,
+
     /// Show the last key Argus received in the footer (for troubleshooting).
     #[arg(long)]
     debug_keys: bool,
@@ -61,7 +70,11 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Cmd {
     /// Stream this machine's snapshots as JSON lines (used over SSH by `--host`).
-    Collect,
+    Collect {
+        /// Include tasks/todo.md items (sent by `--remote-todos`).
+        #[arg(long)]
+        todos: bool,
+    },
     /// Claude Code PermissionRequest hook: lets Argus approve tool calls.
     Hook {
         /// Add the hook to the Claude settings.json instead of running it.
@@ -98,8 +111,11 @@ fn main() -> Result<()> {
         .clone()
         .unwrap_or_else(source::claude::default_dir);
     match cli.command {
-        Some(Cmd::Collect) => {
-            return source::remote::collect(Box::new(ClaudeSource::new(claude_dir)), POLL)
+        Some(Cmd::Collect { todos }) => {
+            return source::remote::collect(
+                Box::new(ClaudeSource::new(claude_dir).with_todos(todos)),
+                POLL,
+            )
         }
         Some(Cmd::Hook { event: true, .. }) => {
             let mut input = String::new();
@@ -130,13 +146,15 @@ fn main() -> Result<()> {
     } else {
         let mut sources: Vec<Box<dyn Source>> = Vec::new();
         if !cli.no_local || cli.hosts.is_empty() {
-            sources.push(Box::new(ClaudeSource::new(claude_dir)));
+            sources.push(Box::new(
+                ClaudeSource::new(claude_dir).with_todos(!cli.no_todos),
+            ));
         }
         for h in &cli.hosts {
-            sources.push(Box::new(RemoteSource::new(h.clone())));
+            sources.push(Box::new(RemoteSource::new(h.clone(), cli.remote_todos)));
         }
         // Always multi, so hosts can be added at runtime with `:connect`.
-        Box::new(MultiSource::new(sources))
+        Box::new(MultiSource::new(sources, cli.remote_todos))
     };
     if let Some(Cmd::Snapshot { wait }) = cli.command {
         return print_snapshot(source, wait);
@@ -170,7 +188,7 @@ fn init(claude_dir: &std::path::Path, write: bool, lang: Option<&str>) -> Result
             println!("{}\n", i18n.t_args("init-missing-file", &[("path", file)]));
         }
     }
-    let mut src = ClaudeSource::new(claude_dir.to_path_buf());
+    let mut src = ClaudeSource::new(claude_dir.to_path_buf()).with_todos(false);
     let _ = src.poll();
     std::thread::sleep(Duration::from_millis(300));
     let snap = src.poll();
@@ -296,4 +314,21 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collect_defaults_to_no_todos() {
+        let cli = Cli::try_parse_from(["argus", "collect"]).unwrap();
+        assert!(matches!(cli.command, Some(Cmd::Collect { todos: false })));
+        let cli = Cli::try_parse_from(["argus", "collect", "--todos"]).unwrap();
+        assert!(matches!(cli.command, Some(Cmd::Collect { todos: true })));
+        let cli = Cli::try_parse_from(["argus", "--no-todos", "--remote-todos"]).unwrap();
+        assert!(cli.no_todos && cli.remote_todos);
+        let cli = Cli::try_parse_from(["argus"]).unwrap();
+        assert!(!cli.no_todos && !cli.remote_todos);
+    }
 }

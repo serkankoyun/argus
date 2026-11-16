@@ -8,14 +8,17 @@ pub struct MultiSource {
     sources: Vec<Box<dyn Source>>,
     metrics: Metrics,
     last: Option<(Millis, u64, f64)>,
+    /// Ask remote hosts (also those added with `:connect`) for todo items.
+    remote_todos: bool,
 }
 
 impl MultiSource {
-    pub fn new(sources: Vec<Box<dyn Source>>) -> Self {
+    pub fn new(sources: Vec<Box<dyn Source>>, remote_todos: bool) -> Self {
         Self {
             sources,
             metrics: Metrics::default(),
             last: None,
+            remote_todos,
         }
     }
 }
@@ -40,6 +43,8 @@ impl Source for MultiSource {
             out.team_roles.extend(snap.team_roles);
             out.team_labels.extend(snap.team_labels);
             out.warnings.extend(snap.warnings);
+            // Merged by hand: `..Default` above would silently drop new fields.
+            out.todos.extend(snap.todos);
         }
         // With remote hosts, hide the local machine when it has no agents of its own.
         if self.sources.len() > 1 {
@@ -64,8 +69,10 @@ impl Source for MultiSource {
     fn control(&mut self, c: &Control) -> Notice {
         match c {
             Control::AddHost(target) => {
-                self.sources
-                    .push(Box::new(RemoteSource::new(target.clone())));
+                self.sources.push(Box::new(RemoteSource::new(
+                    target.clone(),
+                    self.remote_todos,
+                )));
                 Ok(format!("connecting to {target}"))
             }
             Control::Decide { agent, .. } | Control::Resume { agent, .. } => {

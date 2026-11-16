@@ -599,6 +599,7 @@ mod tests {
             owner: None,
             status: TaskStatus::Pending,
             blocked_by: deps.iter().map(|s| s.to_string()).collect(),
+            ..Task::default()
         }
     }
 

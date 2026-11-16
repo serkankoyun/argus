@@ -545,6 +545,7 @@ fn demo_runs(now: Millis) -> Vec<Run> {
                     since: now - ago * min,
                     rounds: 1 + rejections,
                     rejections,
+                    agent: String::new(),
                 },
             )
             .collect(),
@@ -634,6 +635,7 @@ fn task(
         owner: owner.map(Into::into),
         status,
         blocked_by: blocked_by.iter().map(|s| s.to_string()).collect(),
+        ..Task::default()
     }
 }
 

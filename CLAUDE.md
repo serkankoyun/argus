@@ -85,6 +85,7 @@ The maintainer opted in to automatic releases (Nov 14, 2026):
 ## Layout
 - `src/source/` — data sources: `claude.rs` (live `~/.claude` collector), `demo.rs`
   (scripted simulation), `system.rs` (host metrics, running `claude` processes), `pricing.rs`,
-  `events.rs` (lifecycle events), `hook.rs` (`argus hook`), `groups.rs` (team rules)
+  `events.rs` (lifecycle events), `hook.rs` (`argus hook`), `groups.rs` (team rules),
+  `runs.rs` (orchestrator runs), `todos.rs` (`tasks/todo.md` for the Backlog)
 - `src/model.rs` — `Snapshot`, `Agent`, `Message`, `ToolCall`, `Task`, `Host`, `Metrics`
 - `src/app.rs` — state, views, keys; `src/ui/` — one module per view

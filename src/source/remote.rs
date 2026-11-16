@@ -44,10 +44,29 @@ struct Shared {
 pub struct RemoteSource {
     target: String,
     shared: Arc<Mutex<Shared>>,
+    /// Whether the remote collector was asked for `tasks/todo.md` items.
+    todos: bool,
+}
+
+/// The remote command that streams snapshots; todo items only on request,
+/// because their titles cross the network.
+pub fn collect_command(bin: &str, todos: bool) -> String {
+    if todos {
+        format!("{bin} collect --todos")
+    } else {
+        format!("{bin} collect")
+    }
+}
+
+/// Drops todo items a remote sent without being asked (defence in depth).
+pub fn strip_todos(snap: &mut Snapshot, todos: bool) {
+    if !todos {
+        snap.todos.clear();
+    }
 }
 
 impl RemoteSource {
-    pub fn new(target: String) -> Self {
+    pub fn new(target: String, todos: bool) -> Self {
         let shared = Arc::new(Mutex::new(Shared {
             latest: None,
             state: LinkState::Connecting,
@@ -57,9 +76,13 @@ impl RemoteSource {
         let (t, sh) = (target.clone(), shared.clone());
         thread::Builder::new()
             .name(format!("argus-ssh-{target}"))
-            .spawn(move || supervise(&t, &sh))
+            .spawn(move || supervise(&t, &sh, todos))
             .expect("spawn ssh thread");
-        Self { target, shared }
+        Self {
+            target,
+            shared,
+            todos,
+        }
     }
 }
 
@@ -88,7 +111,7 @@ fn ssh(target: &str) -> Command {
 }
 
 /// Keeps a collector session alive, reconnecting with back-off.
-fn supervise(target: &str, sh: &Arc<Mutex<Shared>>) {
+fn supervise(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool) {
     let mut backoff = Duration::from_secs(2);
     loop {
         set_state(sh, LinkState::Connecting);
@@ -97,7 +120,7 @@ fn supervise(target: &str, sh: &Arc<Mutex<Shared>>) {
         if let Ok(mut g) = sh.lock() {
             g.rtt_ms = rtt;
         }
-        match run_collector(target, sh) {
+        match run_collector(target, sh, todos) {
             Ok(()) => set_state(sh, LinkState::Down("collector exited".into())),
             Err(e) => set_state(sh, LinkState::Down(e)),
         }
@@ -284,10 +307,10 @@ fn first_line(s: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn run_collector(target: &str, sh: &Arc<Mutex<Shared>>) -> Result<(), String> {
+fn run_collector(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool) -> Result<(), String> {
     let bin = remote_binary(target, sh)?;
     let mut child: Child = ssh(target)
-        .arg(format!("{bin} collect"))
+        .arg(collect_command(&bin, todos))
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
@@ -327,6 +350,7 @@ impl Source for RemoteSource {
             .last_frame
             .is_none_or(|t| t.elapsed() > Duration::from_secs(10));
         let mut snap = g.latest.clone().unwrap_or_default();
+        strip_todos(&mut snap, self.todos);
         let connected = g.state == LinkState::Live && !stale;
         let region = match &g.state {
             LinkState::Live => "ssh".to_string(),
@@ -441,6 +465,30 @@ pub fn collect(mut source: Box<dyn Source>, every: Duration) -> anyhow::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collect_command_opts_in() {
+        assert_eq!(collect_command("x", false), "x collect");
+        assert_eq!(collect_command("x", true), "x collect --todos");
+    }
+
+    #[test]
+    fn frames_without_opt_in_drop_todos() {
+        let snap = Snapshot {
+            todos: vec![TodoFile::default()],
+            ..Default::default()
+        };
+        let mut off = snap.clone();
+        strip_todos(&mut off, false);
+        assert!(off.todos.is_empty());
+        let mut on = snap;
+        strip_todos(&mut on, true);
+        assert_eq!(on.todos.len(), 1);
+        // Frames from collectors that predate todos still parse.
+        let old = r#"{"v":1,"snapshot":{"taken_at":1,"hosts":[],"agents":[],"messages":[],"tools":[],"tasks":[],"metrics":{"tokens_per_sec":{"samples":[]},"cost_per_hour":{"samples":[]},"tools_per_min":{"samples":[]},"msgs_per_min":{"samples":[]},"errors":{"samples":[]},"ctx_avg":{"samples":[]}},"source":"x"}}"#;
+        let f: Frame = serde_json::from_str(old).unwrap();
+        assert!(f.snapshot.todos.is_empty());
+    }
 
     #[test]
     fn frames_round_trip() {

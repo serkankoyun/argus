@@ -383,6 +383,12 @@ fn build_run(d: RunDir, snap: &Snapshot, host: &str) -> Run {
             key: key.to_string(),
             rounds: workers.len() as u32,
             rejections: files.iter().map(|f| f.rejections).sum(),
+            agent: d
+                .planned
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, t)| t.clone())
+                .unwrap_or_default(),
             ..RunStage::default()
         };
         let latest = files
@@ -671,6 +677,21 @@ mod tests {
         // The developer finished at 200; the tester (started 100) is held since then.
         assert_eq!(st("test").since, 200);
         assert!(r.active());
+    }
+
+    #[test]
+    fn planned_agent_type_is_kept_on_stages() {
+        let mut d = parse_run_json(
+            r#"{"id":"R-20261116-1000-shop-api-x","stages":[{"id":"dev","agent":"orchestra-developer"},{"id":"test","agent":"orchestra-test-writer"},"qa"]}"#,
+            "x",
+        );
+        d.modified = 900;
+        let runs = build_runs(vec![d], &Snapshot::default(), "box", 1000);
+        let st = |k: &str| runs[0].stages.iter().find(|s| s.key == k).unwrap().clone();
+        assert_eq!(st("dev").agent, "orchestra-developer");
+        assert_eq!(st("test").agent, "orchestra-test-writer");
+        assert_eq!(st("qa").agent, "");
+        assert_eq!(st("analysis").agent, "");
     }
 
     #[test]

@@ -197,6 +197,7 @@ Useful options:
 ```sh
 argus --lang en                    # UI language (default: system locale)
 argus --claude-dir /path/.claude   # another Claude config directory
+argus --no-todos                   # do not read tasks/todo.md (e.g. while screen sharing)
 argus snapshot --wait 2            # print one snapshot as JSON (for scripts)
 ```
 
@@ -309,6 +310,47 @@ comes from its agent type (`stages[].agent` in `run.json`, else words such as `a
 ahead show as skipped. Runs untouched for three days are not read; without any run the Task
 map shows task dependencies as before.
 
+### Backlog and tasks/todo.md
+
+Argus also reads `tasks/todo.md` in each session's working folder or up to three levels
+above it (the first 20 files found). Only open checkboxes count; everything is plain
+Markdown and read leniently:
+
+```markdown
+## Waiting on you
+- [ ] Choose the error page wording
+  The two drafts are in docs/drafts.md.      <- indented lines: the item's description
+## Backlog
+- [ ] Add rate limits (waiting on: security review)
+  - [ ] Nested open box: an item of its own, remembers its parent
+- [x] Closed boxes ([x], [X], [-], [~], [/], [>]) are ignored
+```
+
+- **List markers:** `- [ ]`, `* [ ]`, `+ [ ]`, `1. [ ]`, `1) [ ]`. Lines indented below an
+  open item (plain text or sub points without a box) become its description, up to 12 lines
+  or 1200 characters; a blank line does not end the item, a line at the item's indent does.
+- **"Waiting on you" sections:** items under a heading that contains one of these phrases
+  (case and Turkish letters do not matter) are shown as waiting on you; subheadings inherit,
+  the next heading of the same or a higher level ends it:
+  `waiting on you`, `waiting for you`, `waiting on (the) user`, `waiting for (the) user`,
+  `waiting on me`, `needs your`, `your decision`, `your approval`, `decision(s) needed`,
+  `needs decision`, `pending decision`, `awaiting decision`, `awaiting approval`,
+  `open questions`, `questions for you`, `kullanıcıdan bekle…`, `senden bekle…`,
+  `sizden bekle…`, `karar bekle…`, `onay bekle…`, `karar gereken`, `karar verilecek`,
+  `açık soru`. Bare words such as "Decisions" or "Kararlar" do not count.
+- **Wait markers:** an item says what it waits for with `(waiting on: X)`,
+  `(waiting for: X)`, `(blocked by: X)`, `(bekliyor: X)`, `(beklenen: X)` or `(engel: X)`
+  anywhere in its text, or the same without parentheses at the end after ` — `, ` - ` or
+  `;` (also alone on the first indented line). The marker is removed from the title.
+  `X` naming you (`you`, `user`, `me`, `sen`, `kullanıcı`) puts the item under "Waiting on
+  you"; `#12` links it to Agent Teams task 12.
+- **Limits:** the first 1 MiB of a file, 200 open items per file and 500 in total
+  ("waiting on you" items are kept first); what is left out is counted. Files unchanged for
+  30 days are skipped; files are parsed again only when they change.
+- **Privacy:** todo titles stay on this machine. `argus --no-todos` turns reading off (for
+  example while sharing your screen). Remote machines send their todo items only when you
+  ask with `--remote-todos` (section 4).
+
 ## 4. Watching remote machines over SSH (optional)
 
 Argus reuses your own `ssh`, so everything in `~/.ssh/config` works (aliases, keys,
@@ -336,6 +378,10 @@ jump hosts, ports).
    To look at one machine at a time, press `s` (cycles through hosts) or open the Fleet
    view (`4`), choose a host with `↑↓` and press `Enter`; `esc` from any view returns to
    all hosts.
+
+   Remote machines do not send their `tasks/todo.md` items unless you start Argus with
+   `--remote-todos` (the titles would cross the network; it also applies to hosts added
+   with `:connect`).
 
    By default Argus watches **this machine and** the `--host` machines together. If this
    machine has no Claude Code sessions it is hidden; use `--no-local` to leave it out
@@ -551,6 +597,17 @@ to the host (Overview) and in the Fleet view's alerts (`4`).
   `ssh -o BatchMode=yes user@server true` yourself; it must succeed without any prompt.
 - Connected (green) but no agents: the server has no Claude Code session active in the last
   24 hours. Check with `ssh user@server ls ~/.claude/projects`.
+
+**The Backlog shows no todo items for a remote host** — Remote machines keep their
+`tasks/todo.md` to themselves by default. Start Argus with `--remote-todos` if you want them
+(titles cross the network over your SSH connection). Locally, check that you did not start
+with `--no-todos`, that the file is `tasks/todo.md` in a session's folder or up to three
+levels above, and that it changed within the last 30 days.
+
+**My section is not under "Waiting on you"** — Only headings that contain one of the
+phrases in "Backlog and tasks/todo.md" (section 3) count, such as `## Waiting on you` or
+`## Kullanıcıdan beklenenler`; a heading like `## Decisions` does not. Rename the heading,
+or mark single items with `(waiting on: you)`.
 
 **Costs look different from my bill** — Costs are estimates from public per-token prices;
 subscriptions and discounts are not known to Argus.

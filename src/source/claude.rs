@@ -47,6 +47,8 @@ pub struct ClaudeSource {
     host_name: String,
     events: events::EventLog,
     runs: super::runs::RunReader,
+    /// Reads `tasks/todo.md` next to the sessions when on (see [`Self::with_todos`]).
+    todos: Option<super::todos::TodoReader>,
 }
 
 impl ClaudeSource {
@@ -60,7 +62,15 @@ impl ClaudeSource {
             metrics: Metrics::default(),
             last_poll: None,
             host_name: String::new(),
+            todos: None,
         }
+    }
+
+    /// Turns reading `tasks/todo.md` files on or off (off by default: their
+    /// titles may hold personal data, so callers opt in).
+    pub fn with_todos(mut self, on: bool) -> Self {
+        self.todos = on.then(super::todos::TodoReader::default);
+        self
     }
 
     fn discover(&self) -> Vec<(PathBuf, Option<String>)> {
@@ -188,6 +198,13 @@ impl Source for ClaudeSource {
         let dirs = super::runs::find_dirs(snap.agents.iter().map(|a| a.cwd.as_str()));
         let found = self.runs.read(&dirs, now);
         snap.runs = super::runs::build_runs(found, &snap, &host.name, now);
+        if let Some(reader) = self.todos.as_mut() {
+            let files = super::todos::find_todo_files(snap.agents.iter().map(|a| a.cwd.as_str()));
+            snap.todos = reader.read(&files, now);
+            for f in &mut snap.todos {
+                f.host = host.name.clone();
+            }
+        }
         snap.hosts = vec![Host {
             name: host.name.clone(),
             region: "local".into(),
@@ -1528,6 +1545,10 @@ pub fn spawn_tasks(snap: &Snapshot) -> Vec<Task> {
                 _ => TaskStatus::InProgress,
             },
             blocked_by: Vec::new(),
+            detail: cap_chars(&a.task, MAX_DETAIL),
+            active_form: String::new(),
+            source: "spawn".into(),
+            since: a.started,
         })
         .collect()
 }
@@ -1580,16 +1601,70 @@ fn read_tasks(root: &Path) -> Vec<Task> {
                 _ if !blocked_by.is_empty() => TaskStatus::Blocked,
                 _ => TaskStatus::Pending,
             };
+            let title = first_of(&v, &["subject", "title", "description"]);
+            let description = first_of(&v, &["description"]);
+            let detail = if description.trim() == title.trim() {
+                String::new()
+            } else {
+                cap_chars(&description, MAX_DETAIL)
+            };
+            let since = ["createdAt", "updatedAt"]
+                .iter()
+                .find_map(|k| v.get(*k).and_then(time_of))
+                .or_else(|| {
+                    std::fs::metadata(&p)
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as Millis)
+                })
+                .unwrap_or(0);
             out.push(Task {
                 id,
-                title: first_of(&v, &["subject", "title", "description"]),
+                title,
                 owner: v.get("owner").and_then(Value::as_str).map(str::to_string),
                 status,
                 blocked_by,
+                detail,
+                active_form: first_of(&v, &["activeForm"]),
+                source: home_short(&p),
+                since,
             });
         }
     }
     out
+}
+
+/// Longest description kept for a task.
+const MAX_DETAIL: usize = 1200;
+
+/// The first `n` characters of `s`.
+fn cap_chars(s: &str, n: usize) -> String {
+    s.trim().chars().take(n).collect()
+}
+
+/// A timestamp written as RFC 3339 text or as epoch milliseconds.
+fn time_of(v: &Value) -> Option<Millis> {
+    match v {
+        Value::Number(n) => n.as_i64().filter(|ms| *ms > 0),
+        Value::String(s) => chrono::DateTime::parse_from_rfc3339(s)
+            .map(|d| d.timestamp_millis())
+            .ok()
+            .or_else(|| s.parse::<Millis>().ok().filter(|ms| *ms > 0)),
+        _ => None,
+    }
+}
+
+/// A path with the home folder written as `~`.
+pub fn home_short(p: &Path) -> String {
+    let text = p.display().to_string();
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    match text.strip_prefix(home.trim_end_matches(['/', '\\'])) {
+        Some(rest) if !home.is_empty() && rest.starts_with(['/', '\\']) => format!("~{rest}"),
+        _ => text,
+    }
 }
 
 pub fn update_metrics(
@@ -1676,6 +1751,62 @@ mod tests {
             "usage":{"input_tokens":10,"output_tokens":5},
             "content":[{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":"db/migrations/0042.sql"}}]}}));
         c
+    }
+
+    #[test]
+    fn task_files_keep_description_and_active_form() {
+        let root = std::env::temp_dir().join(format!("argus-tasks-test-{}", std::process::id()));
+        let group = root.join("tasks").join("team-x");
+        std::fs::create_dir_all(&group).unwrap();
+        std::fs::write(
+            group.join("1.json"),
+            r#"{"id":"1","subject":"Write the parser","description":"Parse the export file and keep unknown fields.","activeForm":"Writing the parser","owner":"dev-a","status":"pending","createdAt":"2026-11-16T10:00:00Z","extra":42}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            group.join("2.json"),
+            r#"{"id":2,"subject":"Same","description":"Same","status":"in_progress","blockedBy":[1]}"#,
+        )
+        .unwrap();
+        std::fs::write(group.join("3.json"), "not json").unwrap();
+        let mut tasks = read_tasks(&root);
+        tasks.sort_by(|a, b| a.id.cmp(&b.id));
+        assert_eq!(tasks.len(), 2);
+        let t = &tasks[0];
+        assert_eq!(t.title, "Write the parser");
+        assert_eq!(t.detail, "Parse the export file and keep unknown fields.");
+        assert_eq!(t.active_form, "Writing the parser");
+        assert!(t.source.ends_with("1.json"), "{}", t.source);
+        assert_eq!(
+            t.since,
+            chrono::DateTime::parse_from_rfc3339("2026-11-16T10:00:00Z")
+                .unwrap()
+                .timestamp_millis()
+        );
+        // A description equal to the title adds nothing; mtime stands in for dates.
+        assert_eq!(tasks[1].detail, "");
+        assert_eq!(tasks[1].blocked_by, vec!["1".to_string()]);
+        assert!(tasks[1].since > 0);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn spawn_tasks_carry_the_assignment() {
+        let snap = Snapshot {
+            agents: vec![Agent {
+                id: "s/a".into(),
+                parent: Some("s".into()),
+                task: "Check the schema".into(),
+                started: 77,
+                state: AgentState::Working,
+                ..Agent::default()
+            }],
+            ..Default::default()
+        };
+        let t = &spawn_tasks(&snap)[0];
+        assert_eq!(t.detail, "Check the schema");
+        assert_eq!(t.source, "spawn");
+        assert_eq!(t.since, 77);
     }
 
     #[test]

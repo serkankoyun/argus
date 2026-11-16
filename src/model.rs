@@ -246,8 +246,9 @@ pub struct Message {
     pub request: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum TaskStatus {
+    #[default]
     Pending,
     InProgress,
     Blocked,
@@ -265,13 +266,61 @@ impl TaskStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
     pub title: String,
     pub owner: Option<String>,
     pub status: TaskStatus,
     pub blocked_by: Vec<String>,
+    /// Longer description (Agent Teams `description` when it differs from the
+    /// title, or a subagent's assignment).
+    #[serde(default)]
+    pub detail: String,
+    /// What the owner does while it is in progress (Agent Teams `activeForm`).
+    #[serde(default)]
+    pub active_form: String,
+    /// Where it comes from: the task file (home shortened to `~`) or `spawn`.
+    #[serde(default)]
+    pub source: String,
+    /// Since when it exists or last changed.
+    #[serde(default)]
+    pub since: Millis,
+}
+
+/// Open items of one `tasks/todo.md` file.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TodoFile {
+    /// Full path of the file.
+    pub path: String,
+    /// Project folder the `tasks/` folder lives in.
+    pub root: String,
+    /// Project name (the root folder's name).
+    pub project: String,
+    pub host: String,
+    pub modified: Millis,
+    pub items: Vec<TodoItem>,
+    /// Open items left out by the caps (and 1 for a truncated file).
+    pub omitted: u32,
+}
+
+/// An open checkbox (`- [ ]`) in a todo file.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TodoItem {
+    /// 1-based line number.
+    pub line: u32,
+    pub title: String,
+    /// Indented continuation lines.
+    pub detail: String,
+    /// The last two headings above it (`H2 › H3`).
+    pub section: String,
+    /// Title of the box it is nested under, if any.
+    pub parent: String,
+    /// It sits under a heading that means "waiting on you".
+    pub waits_on_you: bool,
+    /// What it waits for, from a marker such as `(waiting on: X)`.
+    #[serde(default)]
+    pub waits_on: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,6 +390,9 @@ pub struct Snapshot {
     /// to every team without its own list.
     #[serde(default)]
     pub team_roles: Vec<(String, Vec<String>)>,
+    /// Open items of `tasks/todo.md` files next to the sessions.
+    #[serde(default)]
+    pub todos: Vec<TodoFile>,
 }
 
 /// The pipeline stages of a run, in order.
@@ -396,6 +448,9 @@ pub struct RunStage {
     pub rounds: u32,
     /// Rejecting decisions so far (rework loops).
     pub rejections: u32,
+    /// Agent type planned for it in `run.json` (e.g. `orchestra-test-writer`).
+    #[serde(default)]
+    pub agent: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -470,6 +525,19 @@ pub fn run_id_in(text: &str) -> Option<&str> {
                 && b[2..10].iter().all(u8::is_ascii_digit)
                 && b[10] == b'-'
         })
+}
+
+/// Whether `path` is `root` or a folder below it (`/a/b` is not within `/a/bc`).
+/// Both `/` and `\\` separate folders.
+pub fn path_within(path: &str, root: &str) -> bool {
+    let root = root.trim_end_matches(['/', '\\']);
+    if root.is_empty() || path.is_empty() {
+        return false;
+    }
+    match path.strip_prefix(root) {
+        Some(rest) => rest.is_empty() || rest.starts_with(['/', '\\']),
+        None => false,
+    }
 }
 
 impl Snapshot {
@@ -605,6 +673,21 @@ impl Snapshot {
                 .filter(|r| host.is_none_or(|h| r.host == h))
                 .cloned()
                 .collect(),
+            // A todo file belongs to a team when one of its agents works in
+            // (or below) the file's project folder.
+            todos: self
+                .todos
+                .iter()
+                .filter(|f| host.is_none_or(|h| f.host == h))
+                .filter(|f| {
+                    team.is_none()
+                        || self
+                            .agents
+                            .iter()
+                            .any(|a| keep(a) && path_within(&a.cwd, &f.root))
+                })
+                .cloned()
+                .collect(),
         }
     }
 
@@ -738,6 +821,45 @@ mod tests {
         s.hide_finished();
         assert_eq!(s.agents.len(), 1);
         assert_eq!(s.hosts.len(), 2);
+    }
+
+    #[test]
+    fn scoped_keeps_todos_of_team_folders() {
+        let mut a = agent("a", None);
+        a.team = Some("shop".into());
+        a.cwd = "/w/shop/api".into();
+        let mut b = agent("b", None);
+        b.team = Some("docs".into());
+        b.cwd = "/w/docs".into();
+        let file = |root: &str, host: &str| TodoFile {
+            path: format!("{root}/tasks/todo.md"),
+            root: root.into(),
+            host: host.into(),
+            ..TodoFile::default()
+        };
+        let s = Snapshot {
+            agents: vec![a, b],
+            todos: vec![
+                file("/w/shop", "local"),
+                file("/w/docs", "local"),
+                file("/w/sh", "local"),
+                file("/w/shop/api", "other"),
+            ],
+            ..Default::default()
+        };
+        let roots =
+            |s: &Snapshot| -> Vec<String> { s.todos.iter().map(|f| f.root.clone()).collect() };
+        assert_eq!(
+            roots(&s.scoped(Some("shop"), None)),
+            ["/w/shop", "/w/shop/api"]
+        );
+        assert_eq!(roots(&s.scoped(Some("docs"), None)), ["/w/docs"]);
+        assert_eq!(roots(&s.scoped(None, Some("other"))), ["/w/shop/api"]);
+        assert_eq!(s.scoped(None, None).todos.len(), 4);
+        assert!(path_within("/a/b", "/a/b/"));
+        assert!(path_within("C:\\w\\x\\y", "C:\\w\\x"));
+        assert!(!path_within("/a/bc", "/a/b"));
+        assert!(!path_within("", "/a"));
     }
 
     #[test]

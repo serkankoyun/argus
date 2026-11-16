@@ -66,6 +66,8 @@ argus hook --install           # exact agent states + approve permission request
 argus init                     # suggest team rules from agent names (--write saves them)
 argus --host user@server       # also watch a remote machine over SSH (any OS combination)
 argus --host user@server --no-local   # only the remote machine
+argus --host user@server --remote-todos   # also show the server's tasks/todo.md items
+argus --no-todos               # do not read tasks/todo.md on this machine
 ```
 
 ## More

@@ -13,6 +13,7 @@ pub mod pricing;
 pub mod remote;
 pub mod runs;
 pub mod system;
+pub mod todos;
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
