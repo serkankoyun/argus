@@ -199,7 +199,7 @@ Useful options:
 argus --lang en                    # UI language (default: system locale)
 argus --claude-dir /path/.claude   # another Claude config directory
 argus --no-todos                   # do not read tasks/todo.md (e.g. while screen sharing)
-argus snapshot --wait 2            # print one snapshot as JSON (for scripts)
+argus snapshot --wait 2            # print one snapshot as JSON (for scripts; --todos adds todo items)
 ```
 
 ## 3. Hooks: exact states and approvals from Argus (optional, recommended)
@@ -366,7 +366,8 @@ Markdown and read leniently:
   30 days are skipped; files are parsed again only when they change.
 - **Privacy:** todo titles stay on this machine. `argus --no-todos` turns reading off (for
   example while sharing your screen). Remote machines send their todo items only when you
-  ask with `--remote-todos` (section 4).
+  ask with `--remote-todos` (section 4). `argus snapshot` leaves todo items out unless you
+  add `argus snapshot --todos`.
 
 ## 4. Watching remote machines over SSH (optional)
 
@@ -542,7 +543,9 @@ Before v0.1.4 Argus kept using whatever collector it had installed on the server
 time (`~/.cache/argus/argus`), even after you updated Argus on your own machine, so an old
 collector could miss newer Claude Code data. Update Argus locally; from v0.1.4 the server copy
 is replaced automatically when its version differs. To check what the server sees, run on the
-server: `~/.cache/argus/argus snapshot | head -c 2000`. If that shows no agents, the agents run
+server: `~/.cache/argus/argus snapshot | head -c 2000` (todo items are left out unless you
+add `--todos`; the output still holds task titles and folder names, so check it before you
+share it). If that shows no agents, the agents run
 as another user or with another config folder (`CLAUDE_CONFIG_DIR`): connect as that user.
 If it shows the agents but their state lags, install the hooks on the server (section 3).
 

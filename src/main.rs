@@ -101,7 +101,20 @@ enum Cmd {
         /// Seconds to keep polling before printing (lets remote hosts connect).
         #[arg(long, default_value_t = 2)]
         wait: u64,
+        /// Include tasks/todo.md items (left out by default: snapshots get
+        /// pasted into issues and scripts).
+        #[arg(long)]
+        todos: bool,
     },
+}
+
+/// Whether this machine's tasks/todo.md files are read: on in the TUI unless
+/// `--no-todos`; `snapshot` only with `--todos`.
+fn local_todos(cli: &Cli) -> bool {
+    match &cli.command {
+        Some(Cmd::Snapshot { todos, .. }) => *todos && !cli.no_todos,
+        _ => !cli.no_todos,
+    }
 }
 
 const FRAME: Duration = Duration::from_millis(50);
@@ -150,7 +163,7 @@ fn main() -> Result<()> {
         let mut sources: Vec<Box<dyn Source>> = Vec::new();
         if !cli.no_local || cli.hosts.is_empty() {
             sources.push(Box::new(
-                ClaudeSource::new(claude_dir).with_todos(!cli.no_todos),
+                ClaudeSource::new(claude_dir).with_todos(local_todos(&cli)),
             ));
         }
         for h in &cli.hosts {
@@ -159,8 +172,8 @@ fn main() -> Result<()> {
         // Always multi, so hosts can be added at runtime with `:connect`.
         Box::new(MultiSource::new(sources, cli.remote_todos))
     };
-    if let Some(Cmd::Snapshot { wait }) = cli.command {
-        return print_snapshot(source, wait);
+    if let Some(Cmd::Snapshot { wait, todos }) = cli.command {
+        return print_snapshot(source, wait, todos);
     }
     let channels = source::spawn(source, POLL);
     let mut app = App::new(i18n, channels, cli.demo);
@@ -248,13 +261,16 @@ fn init(claude_dir: &std::path::Path, write: bool, lang: Option<&str>) -> Result
     Ok(())
 }
 
-fn print_snapshot(mut source: Box<dyn Source>, wait: u64) -> Result<()> {
+fn print_snapshot(mut source: Box<dyn Source>, wait: u64, todos: bool) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(wait);
     let mut snap = source.poll();
     while Instant::now() < deadline {
         std::thread::sleep(POLL);
         snap = source.poll();
     }
+    // Remote todo items too (asked for with --remote-todos) stay out unless
+    // `--todos` is given.
+    source::remote::strip_todos(&mut snap, todos);
     use std::io::Write;
     // A closed pipe (`argus snapshot | head`) is not an error.
     let mut out = std::io::stdout().lock();
@@ -335,5 +351,33 @@ mod tests {
         assert!(cli.no_todos && cli.remote_todos);
         let cli = Cli::try_parse_from(["argus"]).unwrap();
         assert!(!cli.no_todos && !cli.remote_todos);
+    }
+
+    #[test]
+    fn snapshot_leaves_todos_out_unless_asked() {
+        let parse = |args: &[&str]| Cli::try_parse_from(args).unwrap();
+        let cli = parse(&["argus", "snapshot"]);
+        assert!(matches!(
+            cli.command,
+            Some(Cmd::Snapshot { todos: false, .. })
+        ));
+        assert!(!local_todos(&cli));
+        assert!(local_todos(&parse(&["argus", "snapshot", "--todos"])));
+        assert!(!local_todos(&parse(&[
+            "argus",
+            "--no-todos",
+            "snapshot",
+            "--todos"
+        ])));
+        // The TUI reads them unless turned off.
+        assert!(local_todos(&parse(&["argus"])));
+        assert!(!local_todos(&parse(&["argus", "--no-todos"])));
+        // The printed snapshot drops whatever todo items a source returned.
+        let mut snap = crate::model::Snapshot {
+            todos: vec![crate::model::TodoFile::default()],
+            ..Default::default()
+        };
+        source::remote::strip_todos(&mut snap, false);
+        assert!(snap.todos.is_empty());
     }
 }

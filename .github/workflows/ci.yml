@@ -64,9 +64,12 @@ jobs:
           printf '## Backlog\n- [ ] synthetic item\n' | sudo tee /home/me/shop/tasks/todo.md
       - name: tasks/todo.md is read locally unless turned off
         run: |
-          ./target/release/argus --claude-dir tests/fixtures/claude snapshot --wait 0 > local.json
+          # snapshot leaves todo items out unless asked with --todos.
+          ./target/release/argus --claude-dir tests/fixtures/claude snapshot --wait 0 > default.json
+          jq -e '(.todos // []) | length == 0' default.json
+          ./target/release/argus --claude-dir tests/fixtures/claude snapshot --todos --wait 0 > local.json
           jq -e '.todos[0].items[0].title == "synthetic item"' local.json
-          ./target/release/argus --claude-dir tests/fixtures/claude --no-todos snapshot --wait 0 > off.json
+          ./target/release/argus --claude-dir tests/fixtures/claude --no-todos snapshot --todos --wait 0 > off.json
           jq -e '(.todos // []) | length == 0' off.json
       - name: Remote host over SSH (auto-installs argus)
         run: |
@@ -77,7 +80,7 @@ jobs:
           test -x ~/.cache/argus/argus
           # Remote todo items cross the network only on request.
           jq -e '(.todos // []) | length == 0' remote.json
-          ./target/release/argus --host localhost --no-local --remote-todos snapshot --wait 20 > remote-todos.json
+          ./target/release/argus --host localhost --no-local --remote-todos snapshot --todos --wait 20 > remote-todos.json
           jq -e '.todos[0].items[0].title == "synthetic item"' remote-todos.json
       - name: Remote host on another platform (server downloads its own build)
         run: |

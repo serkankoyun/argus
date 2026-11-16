@@ -7,7 +7,7 @@ which tool it is running, how much context and money it is burning, and — abov
 **how agents hand off tasks and talk to each other**. Connect to remote machines over SSH
 and see all of your agents, on every host, in one place.
 
-> **Status:** early development — all ten views work with the live collector and the demo.
+> **Status:** early development — all thirteen views work with the live collector and the demo.
 > Star the repo to follow along.
 
 ![Argus demo](docs/media/demo-en.gif)
@@ -23,7 +23,7 @@ conversation between your agents.
 
 - **Teams** — the coordinator on top, one card per busy team with its roles (which are at work now) and each agent's task and activity, finished teams on one line, cross-team requests; `t` opens it (`Enter` filters every view to the chosen team). Setups with configured teams start on this view
 - **Backlog** — the work queue, not just the agents: first what waits on you, with how many items each answer unblocks; then per agent what runs now, what is queued (its turn) and what waits and why; and the unassigned pool from `tasks/todo.md`. Every item says what it is, why it waits, on whom, since when and where it comes from; `b` opens it
-- **Ten views, one keystroke apart** — switch instantly with `1`–`0` or `tab`; the selected agent follows you
+- **Thirteen views, one keystroke apart** — switch instantly with `1`–`0`, `t`, `H`, `b` or `tab`; the selected agent follows you
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
 - **Full metrics** — tokens, cache hits, context window, cost, throughput, tool calls, files touched

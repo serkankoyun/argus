@@ -109,7 +109,7 @@ Agent messages and "now" descriptions are shown in the user's language.
 
 ## Status (Nov 14, 2026)
 
-All ten views plus the Teams view are implemented and recorded from the demo in
+All ten numbered views plus Teams, History and Backlog are implemented and recorded from the demo in
 `docs/media/`. Live collector, SSH remotes (auto-install, replaced when its version differs), command bar, headless runs,
 `--resume` messages, the PermissionRequest approval hook and lifecycle events are done and covered by
 end-to-end tests in CI (fixtures, SSH loopback, hook round trip).
