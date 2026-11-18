@@ -253,6 +253,11 @@ impl Source for DemoSource {
                 cpu_pct: (58.0 + 6.0 * wave(t, 17.0, 0.0)) as u8,
                 mem_pct: 47,
                 rtt_ms: Some(12),
+                account: Some(Account {
+                    org: "Acme".into(),
+                    plan: "Team".into(),
+                    email: "d***@example.com".into(),
+                }),
             },
             Host {
                 name: "gpu-2".into(),
@@ -261,6 +266,11 @@ impl Source for DemoSource {
                 cpu_pct: (81.0 + 5.0 * wave(t, 13.0, 1.0)) as u8,
                 mem_pct: 64,
                 rtt_ms: Some(31),
+                account: Some(Account {
+                    org: "Acme Research".into(),
+                    plan: "Max".into(),
+                    email: "m***@example.com".into(),
+                }),
             },
             Host {
                 name: "dev-3".into(),
@@ -269,6 +279,8 @@ impl Source for DemoSource {
                 cpu_pct: 17,
                 mem_pct: 22,
                 rtt_ms: Some(248),
+                // Signed in with an API key: shown as such.
+                account: Some(Account::default()),
             },
         ];
 

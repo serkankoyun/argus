@@ -366,6 +366,7 @@ impl Source for RemoteSource {
                 cpu_pct: 0,
                 mem_pct: 0,
                 rtt_ms: None,
+                account: None,
             });
         }
         for h in &mut snap.hosts {

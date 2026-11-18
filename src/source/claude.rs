@@ -49,6 +49,8 @@ pub struct ClaudeSource {
     runs: super::runs::RunReader,
     /// Reads `tasks/todo.md` next to the sessions when on (see [`Self::with_todos`]).
     todos: Option<super::todos::TodoReader>,
+    /// Reads the signed-in Claude account when on (see [`Self::with_account`]).
+    account: Option<super::account::AccountReader>,
 }
 
 impl ClaudeSource {
@@ -63,7 +65,15 @@ impl ClaudeSource {
             last_poll: None,
             host_name: String::new(),
             todos: None,
+            account: None,
         }
+    }
+
+    /// Turns reading the signed-in Claude account (organization, plan and a
+    /// masked email from `.claude.json`) on or off.
+    pub fn with_account(mut self, on: bool) -> Self {
+        self.account = on.then(|| super::account::AccountReader::new(&self.root));
+        self
     }
 
     /// Turns reading `tasks/todo.md` files on or off (off by default: their
@@ -216,6 +226,7 @@ impl Source for ClaudeSource {
             cpu_pct: host.cpu_pct,
             mem_pct: host.mem_pct,
             rtt_ms: None,
+            account: self.account.as_mut().and_then(|r| r.read()),
         }];
         update_metrics(&mut self.metrics, &mut self.last_poll, &snap, now);
         snap.metrics = self.metrics.clone();

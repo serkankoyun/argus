@@ -2,6 +2,7 @@
 //! background thread polls it, applies [`Control`] commands from the UI and
 //! reports their outcome as short notices.
 
+pub mod account;
 pub mod actions;
 pub mod claude;
 pub mod demo;
