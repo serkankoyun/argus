@@ -32,6 +32,9 @@ col-tokens = TOKEN
 col-context = CONTEXT
 col-cost = MALİYET
 col-time = SÜRE
+col-model = MODEL
+col-account = HESAP
+account-none = API anahtarı / oturum yok
 
 ## Agent states
 state-working = çalışıyor

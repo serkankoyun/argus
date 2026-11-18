@@ -109,7 +109,8 @@ fn draw_card(buf: &mut Buffer, r: Rect, n: &Node, app: &App) {
         Span::styled(format!(" {} ", a.state.symbol()), Style::new().fg(c)),
         Span::styled(format!("{} ", a.name), bold().fg(FG)),
     ]);
-    let host = Line::styled(format!(" {} ", a.host), Style::new().fg(DIM)).right_aligned();
+    let host_text = host_title(&title, &a.host, &a.model, r.width);
+    let host = Line::styled(host_text, Style::new().fg(DIM)).right_aligned();
     let activity = match a.state {
         AgentState::Working if !a.tool.is_empty() => plain_activity(app, &a.tool, &a.now),
         _ => now_text(app, a),
@@ -332,4 +333,39 @@ fn draw_conversations(frame: &mut Frame, area: Rect, app: &App) {
         Paragraph::new(lines).block(pane(app.i18n.t("pane-conversations"), false)),
         area,
     );
+}
+
+/// Right-hand card title: the host, plus the short model while both titles fit
+/// the top border. Widths are display columns, so wide characters count right.
+fn host_title(title: &Line, host: &str, model: &str, width: u16) -> String {
+    let with_model = format!(" {} · {} ", host, short_model(model));
+    let used = title.width() + Span::raw(with_model.as_str()).width() + 2;
+    if used <= width as usize {
+        with_model
+    } else {
+        format!(" {host} ")
+    }
+}
+
+#[cfg(test)]
+mod host_title_tests {
+    use super::*;
+
+    #[test]
+    fn model_shows_only_when_display_width_fits() {
+        let title = |name: &str| Line::from(vec![Span::raw(" * "), Span::raw(format!("{name} "))]);
+        // " * ab " (6) + " h · opus-5.5 " (14) + 2 borders = 22 columns.
+        assert_eq!(
+            host_title(&title("ab"), "h", "claude-opus-5-5", 22),
+            " h · opus-5.5 "
+        );
+        assert_eq!(host_title(&title("ab"), "h", "claude-opus-5-5", 21), " h ");
+        // Two wide characters take four columns, not two.
+        let wide = "\u{4e2d}\u{6587}";
+        assert_eq!(host_title(&title(wide), "h", "claude-opus-5-5", 22), " h ");
+        assert_eq!(
+            host_title(&title(wide), "h", "claude-opus-5-5", 24),
+            " h · opus-5.5 "
+        );
+    }
 }

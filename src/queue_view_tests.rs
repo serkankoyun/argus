@@ -1273,10 +1273,10 @@ fn ac7_cli_never_opts_in_by_default() {
     assert!(c.remote_todos);
     use crate::source::remote::collect_command;
     for bin in ["argus", "~/.cache/argus/argus", "/opt/my tools/argus"] {
-        let off = collect_command(bin, false);
+        let off = collect_command(bin, false, true);
         assert!(!off.contains("--todos"), "{off}");
         assert!(off.ends_with(" collect"), "{off}");
-        assert!(collect_command(bin, true).ends_with(" collect --todos"));
+        assert!(collect_command(bin, true, true).ends_with(" collect --todos"));
     }
 }
 
@@ -1316,7 +1316,7 @@ fn ac7_multi_source_keeps_local_todos() {
         todos: vec![todo_file("/w/local", vec![todo(1, "local item")], 0)],
         ..Snapshot::default()
     };
-    let mut m = crate::source::multi::MultiSource::new(vec![Box::new(Fixed(local))], false);
+    let mut m = crate::source::multi::MultiSource::new(vec![Box::new(Fixed(local))], false, true);
     let out = m.poll();
     assert_eq!(
         out.todos.len(),

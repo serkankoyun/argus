@@ -7,7 +7,8 @@ use ratatui::text::Span;
 use ratatui::widgets::Block;
 
 use crate::app::App;
-use crate::model::{Agent, AgentState, Millis, MsgKind, Series};
+use crate::i18n::I18n;
+use crate::model::{Account, Agent, AgentState, Millis, MsgKind, Series};
 
 pub const ACCENT: Color = Color::Rgb(88, 166, 255);
 pub const DIM: Color = Color::Rgb(139, 148, 158);
@@ -247,6 +248,64 @@ pub fn trunc(s: &str, n: usize) -> String {
     }
 }
 
+/// Short model label for lists: `claude-opus-5-5` becomes `opus-5.5`. Drops the
+/// `claude-` prefix, a date suffix (`-20260301`) and a context tag (`[1m]`), and
+/// turns a trailing `-N-M` version into `N.M`. Other names (another vendor's
+/// model, an alias) are shown as they are after that clean-up; an empty model
+/// shows `?`.
+pub fn short_model(model: &str) -> String {
+    let m = model.trim();
+    let m = m.split('[').next().unwrap_or(m);
+    let m = m.strip_prefix("claude-").unwrap_or(m);
+    let mut parts: Vec<&str> = m.split('-').filter(|p| !p.is_empty()).collect();
+    let digits = |p: &str| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit());
+    if parts.last().is_some_and(|p| p.len() >= 8 && digits(p)) {
+        parts.pop();
+    }
+    let n = parts.len();
+    if n == 0 {
+        return "?".into();
+    }
+    let small = |p: &str| digits(p) && p.len() <= 2;
+    if n >= 3 && small(parts[n - 1]) && small(parts[n - 2]) && !digits(parts[n - 3]) {
+        return format!(
+            "{}-{}.{}",
+            parts[..n - 2].join("-"),
+            parts[n - 2],
+            parts[n - 1]
+        );
+    }
+    parts.join("-")
+}
+
+/// A host's Claude account in at most `width` columns: `org · plan · email`
+/// when it fits (and `with_email`), else `org · plan`. Empty when the account
+/// was not read; a translated "not signed in" label without an OAuth login.
+pub fn account_text(i18n: &I18n, acc: Option<&Account>, width: usize, with_email: bool) -> String {
+    let Some(a) = acc else {
+        return String::new();
+    };
+    if !a.signed_in() {
+        return trunc(&i18n.t("account-none"), width);
+    }
+    let short = [a.org.as_str(), a.plan.as_str()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ");
+    if with_email && !a.email.is_empty() {
+        let full = if short.is_empty() {
+            a.email.clone()
+        } else {
+            format!("{short} · {}", a.email)
+        };
+        if full.chars().count() <= width || short.is_empty() {
+            return trunc(&full, width);
+        }
+    }
+    trunc(&short, width)
+}
+
 /// What a tool call does, in plain words: "Bash · running tests",
 /// "Edit · SetupWizardPage.tsx", "Agent → new tester". The raw command stays in
 /// the agent detail view.
@@ -325,6 +384,52 @@ mod tests {
         assert_eq!(duration(42), "42s");
         assert_eq!(tokens(84_200), "84.2k");
         assert_eq!(trunc("abcdef", 4), "abc…");
+    }
+
+    #[test]
+    fn account_text_drops_the_email_first() {
+        let i = I18n::new(Some("en"));
+        let a = Account {
+            org: "Acme".into(),
+            plan: "Team".into(),
+            email: "d***@example.com".into(),
+        };
+        assert_eq!(account_text(&i, None, 40, true), "");
+        assert_eq!(
+            account_text(&i, Some(&a), 40, true),
+            "Acme · Team · d***@example.com"
+        );
+        assert_eq!(account_text(&i, Some(&a), 20, true), "Acme · Team");
+        assert_eq!(account_text(&i, Some(&a), 40, false), "Acme · Team");
+        assert_eq!(account_text(&i, Some(&a), 6, true), "Acme …");
+        let none = account_text(&i, Some(&Account::default()), 40, true);
+        assert_eq!(none, i.t("account-none"));
+        let only_email = Account {
+            email: "d***@example.com".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            account_text(&i, Some(&only_email), 40, true),
+            "d***@example.com"
+        );
+    }
+
+    #[test]
+    fn short_model_labels() {
+        assert_eq!(short_model("claude-opus-5-5"), "opus-5.5");
+        assert_eq!(short_model("claude-sonnet-5-5"), "sonnet-5.5");
+        assert_eq!(short_model("claude-haiku-5-5"), "haiku-5.5");
+        assert_eq!(short_model("claude-fable-5-2"), "fable-5.2");
+        assert_eq!(short_model("claude-sonnet-5-5-20260301"), "sonnet-5.5");
+        assert_eq!(short_model("claude-opus-4-1-20250805"), "opus-4.1");
+        assert_eq!(short_model("claude-opus-5-5[1m]"), "opus-5.5");
+        assert_eq!(short_model("claude-sonnet-4-20250514"), "sonnet-4");
+        // Legacy order (version before family) is only stripped, not rewritten.
+        assert_eq!(short_model("claude-3-5-sonnet-20241022"), "3-5-sonnet");
+        assert_eq!(short_model(""), "?");
+        assert_eq!(short_model("  "), "?");
+        assert_eq!(short_model("claude-"), "?");
+        assert_eq!(short_model("gpt-x"), "gpt-x");
     }
 
     #[test]

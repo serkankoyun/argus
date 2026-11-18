@@ -46,16 +46,45 @@ pub struct RemoteSource {
     shared: Arc<Mutex<Shared>>,
     /// Whether the remote collector was asked for `tasks/todo.md` items.
     todos: bool,
+    /// Whether the remote's Claude account (masked) is shown.
+    account: bool,
 }
 
 /// The remote command that streams snapshots; todo items only on request,
-/// because their titles cross the network.
-pub fn collect_command(bin: &str, todos: bool) -> String {
+/// because their titles cross the network. The account (masked on the remote)
+/// is sent unless `--no-account` turned it off.
+pub fn collect_command(bin: &str, todos: bool, account: bool) -> String {
+    let mut cmd = format!("{bin} collect");
     if todos {
-        format!("{bin} collect --todos")
-    } else {
-        format!("{bin} collect")
+        cmd.push_str(" --todos");
     }
+    if !account {
+        cmd.push_str(" --no-account");
+    }
+    cmd
+}
+
+/// Drops remote accounts when they are off and masks the email again
+/// otherwise (defence in depth: masking is idempotent, so a well-behaved
+/// collector's value is unchanged).
+pub fn strip_account(snap: &mut Snapshot, account: bool) {
+    for h in &mut snap.hosts {
+        if !account {
+            h.account = None;
+        } else if let Some(a) = h.account.as_mut() {
+            super::account::sanitize(a);
+        }
+    }
+}
+
+/// Parses one collector line. Fields the user did not ask for are dropped and
+/// account text is masked here, before the frame is stored, so a raw email
+/// from an older or modified remote never sits in shared state.
+pub fn decode_frame(line: &str, todos: bool, account: bool) -> serde_json::Result<Frame> {
+    let mut f: Frame = serde_json::from_str(line)?;
+    strip_todos(&mut f.snapshot, todos);
+    strip_account(&mut f.snapshot, account);
+    Ok(f)
 }
 
 /// Drops todo items a remote sent without being asked (defence in depth).
@@ -66,7 +95,7 @@ pub fn strip_todos(snap: &mut Snapshot, todos: bool) {
 }
 
 impl RemoteSource {
-    pub fn new(target: String, todos: bool) -> Self {
+    pub fn new(target: String, todos: bool, account: bool) -> Self {
         let shared = Arc::new(Mutex::new(Shared {
             latest: None,
             state: LinkState::Connecting,
@@ -76,12 +105,13 @@ impl RemoteSource {
         let (t, sh) = (target.clone(), shared.clone());
         thread::Builder::new()
             .name(format!("argus-ssh-{target}"))
-            .spawn(move || supervise(&t, &sh, todos))
+            .spawn(move || supervise(&t, &sh, todos, account))
             .expect("spawn ssh thread");
         Self {
             target,
             shared,
             todos,
+            account,
         }
     }
 }
@@ -111,7 +141,7 @@ fn ssh(target: &str) -> Command {
 }
 
 /// Keeps a collector session alive, reconnecting with back-off.
-fn supervise(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool) {
+fn supervise(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool, account: bool) {
     let mut backoff = Duration::from_secs(2);
     loop {
         set_state(sh, LinkState::Connecting);
@@ -120,7 +150,7 @@ fn supervise(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool) {
         if let Ok(mut g) = sh.lock() {
             g.rtt_ms = rtt;
         }
-        match run_collector(target, sh, todos) {
+        match run_collector(target, sh, todos, account) {
             Ok(()) => set_state(sh, LinkState::Down("collector exited".into())),
             Err(e) => set_state(sh, LinkState::Down(e)),
         }
@@ -307,10 +337,15 @@ fn first_line(s: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn run_collector(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool) -> Result<(), String> {
+fn run_collector(
+    target: &str,
+    sh: &Arc<Mutex<Shared>>,
+    todos: bool,
+    account: bool,
+) -> Result<(), String> {
     let bin = remote_binary(target, sh)?;
     let mut child: Child = ssh(target)
-        .arg(collect_command(&bin, todos))
+        .arg(collect_command(&bin, todos, account))
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
@@ -318,7 +353,7 @@ fn run_collector(target: &str, sh: &Arc<Mutex<Shared>>, todos: bool) -> Result<(
     let stdout = child.stdout.take().ok_or("no stdout")?;
     for line in BufReader::new(stdout).lines() {
         let line = line.map_err(|e| e.to_string())?;
-        match serde_json::from_str::<Frame>(&line) {
+        match decode_frame(&line, todos, account) {
             Ok(f) if f.v == PROTOCOL => {
                 if let Ok(mut g) = sh.lock() {
                     g.latest = Some(f.snapshot);
@@ -351,6 +386,7 @@ impl Source for RemoteSource {
             .is_none_or(|t| t.elapsed() > Duration::from_secs(10));
         let mut snap = g.latest.clone().unwrap_or_default();
         strip_todos(&mut snap, self.todos);
+        strip_account(&mut snap, self.account);
         let connected = g.state == LinkState::Live && !stale;
         let region = match &g.state {
             LinkState::Live => "ssh".to_string(),
@@ -366,6 +402,7 @@ impl Source for RemoteSource {
                 cpu_pct: 0,
                 mem_pct: 0,
                 rtt_ms: None,
+                account: None,
             });
         }
         for h in &mut snap.hosts {
@@ -468,8 +505,83 @@ mod tests {
 
     #[test]
     fn collect_command_opts_in() {
-        assert_eq!(collect_command("x", false), "x collect");
-        assert_eq!(collect_command("x", true), "x collect --todos");
+        assert_eq!(collect_command("x", false, true), "x collect");
+        assert_eq!(collect_command("x", true, true), "x collect --todos");
+        assert_eq!(
+            collect_command("x", true, false),
+            "x collect --todos --no-account"
+        );
+        assert_eq!(collect_command("x", false, false), "x collect --no-account");
+    }
+
+    #[test]
+    fn remote_accounts_are_dropped_when_off_and_always_masked() {
+        let snap = Snapshot {
+            hosts: vec![Host {
+                name: "r".into(),
+                region: "ssh".into(),
+                connected: true,
+                cpu_pct: 0,
+                mem_pct: 0,
+                rtt_ms: None,
+                account: Some(Account {
+                    org: "Acme".into(),
+                    plan: "Team".into(),
+                    email: "someone@example.com".into(),
+                }),
+            }],
+            ..Default::default()
+        };
+        let mut off = snap.clone();
+        strip_account(&mut off, false);
+        assert_eq!(off.hosts[0].account, None);
+        let mut on = snap;
+        strip_account(&mut on, true);
+        let a = on.hosts[0].account.as_ref().unwrap();
+        assert_eq!(
+            (a.org.as_str(), a.email.as_str()),
+            ("Acme", "s***@example.com")
+        );
+        // A frame from a collector without the field carries no account.
+        let old = r#"{"v":1,"snapshot":{"taken_at":1,"hosts":[{"name":"r","region":"","connected":true,"cpu_pct":0,"mem_pct":0,"rtt_ms":null}],"agents":[],"messages":[],"tools":[],"tasks":[],"metrics":{"tokens_per_sec":{"samples":[]},"cost_per_hour":{"samples":[]},"tools_per_min":{"samples":[]},"msgs_per_min":{"samples":[]},"errors":{"samples":[]},"ctx_avg":{"samples":[]}},"source":"x"}}"#;
+        let f: Frame = serde_json::from_str(old).unwrap();
+        assert_eq!(f.snapshot.hosts[0].account, None);
+    }
+
+    #[test]
+    fn raw_email_in_a_remote_frame_is_masked_on_arrival() {
+        let snap = Snapshot {
+            hosts: vec![Host {
+                name: "r".into(),
+                region: "ssh".into(),
+                connected: true,
+                cpu_pct: 0,
+                mem_pct: 0,
+                rtt_ms: None,
+                account: Some(Account {
+                    org: "someone@example.com's Organization".into(),
+                    plan: "Max".into(),
+                    email: "someone@example.com".into(),
+                }),
+            }],
+            ..Default::default()
+        };
+        // What an older or modified collector could send.
+        let line = serde_json::to_string(&Frame {
+            v: PROTOCOL,
+            snapshot: snap,
+        })
+        .unwrap();
+        assert!(line.contains("someone@example.com"));
+        let f = decode_frame(&line, false, true).unwrap();
+        let a = f.snapshot.hosts[0].account.as_ref().unwrap();
+        assert_eq!(a.org, "s***@example.com's Organization");
+        assert_eq!(a.email, "s***@example.com");
+        let stored = serde_json::to_string(&f.snapshot).unwrap();
+        assert!(!stored.contains("someone"), "{stored}");
+        let off = decode_frame(&line, false, false).unwrap();
+        assert_eq!(off.snapshot.hosts[0].account, None);
+        assert!(decode_frame("not json", false, true).is_err());
     }
 
     #[test]

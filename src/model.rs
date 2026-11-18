@@ -334,6 +334,32 @@ pub struct Host {
     pub cpu_pct: u8,
     pub mem_pct: u8,
     pub rtt_ms: Option<u32>,
+    /// Claude account its Claude Code is signed in with; `None` when not read
+    /// (`--no-account`, or an older remote collector).
+    #[serde(default)]
+    pub account: Option<Account>,
+}
+
+/// The Claude account of a host. Built by `source::account`, which masks the
+/// email before it gets here: no raw address enters a snapshot, its JSON
+/// output or the SSH stream. All fields empty means not signed in (API key).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Account {
+    /// Organization name, e.g. `Acme`.
+    #[serde(default)]
+    pub org: String,
+    /// Plan label derived from the organization type, e.g. `Team`.
+    #[serde(default)]
+    pub plan: String,
+    /// Masked email, e.g. `d***@example.com`. Never the raw address.
+    #[serde(default)]
+    pub email: String,
+}
+
+impl Account {
+    pub fn signed_in(&self) -> bool {
+        !(self.org.is_empty() && self.plan.is_empty() && self.email.is_empty())
+    }
 }
 
 /// Fixed-size history of a metric, one sample per collector tick.
@@ -816,6 +842,7 @@ mod tests {
                 cpu_pct: 0,
                 mem_pct: 0,
                 rtt_ms: None,
+                account: None,
             })
             .collect();
         let h2 = s.scoped(None, Some("h2"));

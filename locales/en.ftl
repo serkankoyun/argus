@@ -34,6 +34,9 @@ col-tokens = TOKENS
 col-context = CONTEXT
 col-cost = COST
 col-time = TIME
+col-model = MODEL
+col-account = ACCOUNT
+account-none = API key / not signed in
 
 ## Agent states
 state-working = working

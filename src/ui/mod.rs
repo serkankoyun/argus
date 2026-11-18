@@ -644,6 +644,81 @@ mod tests {
     }
 
     #[test]
+    fn fleet_and_overview_show_the_demo_accounts() {
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Fleet;
+        let s = screen(&app, 187, 40);
+        assert!(s.contains("ACCOUNT"), "{s}");
+        assert!(s.contains("Acme · Team"), "{s}");
+        assert!(s.contains("d***@example.com"), "{s}");
+        assert!(s.contains("API key / not signed in"), "{s}");
+        app.view = View::Overview;
+        let s = screen(&app, 187, 40);
+        // The account line fits under each host at the normal demo size.
+        assert!(s.contains("Acme · Team"), "{s}");
+        assert!(s.contains("Acme Research · Max"), "{s}");
+    }
+
+    /// Builds a local snapshot from a `.claude.json` whose organization name
+    /// carries the raw email, the way personal accounts are named.
+    fn local_snapshot_with_account(on: bool) -> crate::model::Snapshot {
+        let dir =
+            std::env::temp_dir().join(format!("argus-ui-account-{}-{on}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".claude.json"),
+            r#"{"oauthAccount": {"emailAddress": "someone@example.com",
+                "organizationName": "someone@example.com's Organization",
+                "organizationType": "claude_max"}}"#,
+        )
+        .unwrap();
+        let snap = crate::source::claude::ClaudeSource::new(dir.clone())
+            .with_account(on)
+            .poll();
+        let _ = std::fs::remove_dir_all(&dir);
+        snap
+    }
+
+    #[test]
+    fn local_account_is_masked_on_every_screen() {
+        let snap = local_snapshot_with_account(true);
+        assert!(!serde_json::to_string(&snap).unwrap().contains("someone"));
+        let mut app = app_with(snap);
+        for view in [View::Fleet, View::Overview] {
+            app.view = view;
+            let s = screen(&app, 187, 40);
+            // Overview truncates the organization to its pane.
+            assert!(s.contains("s***@example.com's Organi"), "{s}");
+            assert!(!s.contains("someone"), "{s}");
+        }
+    }
+
+    #[test]
+    fn no_account_shows_no_account_text() {
+        let mut app = app_with(local_snapshot_with_account(false));
+        for view in [View::Fleet, View::Overview] {
+            app.view = view;
+            let s = screen(&app, 187, 40);
+            assert!(!s.contains("example.com") && !s.contains("API key"), "{s}");
+        }
+    }
+
+    #[test]
+    fn overview_and_agent_view_show_short_models() {
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Overview;
+        let s = screen(&app, 187, 40);
+        assert!(s.contains("MODEL"), "{s}");
+        assert!(s.contains("opus-5.5") && s.contains("sonnet-5.5"), "{s}");
+        assert!(!s.contains("claude-opus"), "{s}");
+        app.selected = app.snapshot.agents.first().map(|a| a.id.clone());
+        app.view = View::AgentDetail;
+        let s = screen(&app, 187, 40);
+        assert!(!s.contains("claude-"), "{s}");
+    }
+
+    #[test]
     fn every_view_renders_empty() {
         let mut app = app_with(crate::model::Snapshot::default());
         let mut terminal = Terminal::new(TestBackend::new(120, 36)).unwrap();
