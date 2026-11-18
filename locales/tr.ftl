@@ -32,6 +32,7 @@ col-tokens = TOKEN
 col-context = CONTEXT
 col-cost = MALİYET
 col-time = SÜRE
+col-model = MODEL
 
 ## Agent states
 state-working = çalışıyor

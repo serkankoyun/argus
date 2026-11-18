@@ -34,6 +34,7 @@ col-tokens = TOKENS
 col-context = CONTEXT
 col-cost = COST
 col-time = TIME
+col-model = MODEL
 
 ## Agent states
 state-working = working

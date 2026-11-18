@@ -644,6 +644,20 @@ mod tests {
     }
 
     #[test]
+    fn overview_and_agent_view_show_short_models() {
+        let mut app = app_with(DemoSource::new("en").poll());
+        app.view = View::Overview;
+        let s = screen(&app, 187, 40);
+        assert!(s.contains("MODEL"), "{s}");
+        assert!(s.contains("opus-5.5") && s.contains("sonnet-5.5"), "{s}");
+        assert!(!s.contains("claude-opus"), "{s}");
+        app.selected = app.snapshot.agents.first().map(|a| a.id.clone());
+        app.view = View::AgentDetail;
+        let s = screen(&app, 187, 40);
+        assert!(!s.contains("claude-"), "{s}");
+    }
+
+    #[test]
     fn every_view_renders_empty() {
         let mut app = app_with(crate::model::Snapshot::default());
         let mut terminal = Terminal::new(TestBackend::new(120, 36)).unwrap();

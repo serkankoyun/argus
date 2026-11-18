@@ -91,20 +91,23 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
         frame.render_widget(p, area);
         return;
     }
-    let header = Row::new(
-        [
-            "col-agent",
-            "col-host",
-            "col-state",
-            "col-tool",
-            "col-tokens",
-            "col-context",
-            "col-cost",
-            "col-time",
-        ]
-        .map(|k| Cell::from(i.t(k))),
-    )
-    .style(Style::new().fg(DIM));
+    let (show_host, show_model) = agent_columns(area.width, app.snapshot.hosts.len());
+    let mut keys = vec!["col-agent"];
+    if show_host {
+        keys.push("col-host");
+    }
+    if show_model {
+        keys.push("col-model");
+    }
+    keys.extend([
+        "col-state",
+        "col-tool",
+        "col-tokens",
+        "col-context",
+        "col-cost",
+        "col-time",
+    ]);
+    let header = Row::new(keys.into_iter().map(|k| Cell::from(i.t(k)))).style(Style::new().fg(DIM));
 
     let order = app.snapshot.tree_order();
     let rows = order.iter().map(|&(idx, depth)| {
@@ -115,9 +118,20 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
             Span::raw(format!("{}└ {}", "  ".repeat(depth), a.name))
         };
         let sc = pulse_color(app, a.state);
-        let mut row = Row::new(vec![
-            Cell::from(name),
-            Cell::from(Span::styled(a.host.clone(), Style::new().fg(DIM))),
+        let mut cells = vec![Cell::from(name)];
+        if show_host {
+            cells.push(Cell::from(Span::styled(
+                a.host.clone(),
+                Style::new().fg(DIM),
+            )));
+        }
+        if show_model {
+            cells.push(Cell::from(Span::styled(
+                short_model(&a.model),
+                Style::new().fg(CYAN),
+            )));
+        }
+        cells.extend([
             Cell::from(Span::styled(
                 format!("{} {}", a.state.symbol(), i.t(a.state.key())),
                 Style::new().fg(sc),
@@ -138,26 +152,49 @@ fn draw_agents(frame: &mut Frame, area: Rect, app: &App) {
                 Style::new().fg(DIM),
             )),
         ]);
+        let mut row = Row::new(cells);
         if app.selected.as_deref() == Some(a.id.as_str()) {
             row = row.style(Style::new().bg(SELECTED_BG));
         }
         row
     });
-    let widths = [
-        Constraint::Min(18),
-        Constraint::Length(8),
+    let mut widths = vec![Constraint::Min(18)];
+    if show_host {
+        widths.push(Constraint::Length(HOST_W));
+    }
+    if show_model {
+        widths.push(Constraint::Length(MODEL_W));
+    }
+    widths.extend([
         Constraint::Length(13),
         Constraint::Length(12),
         Constraint::Length(8),
         Constraint::Length(13),
         Constraint::Length(8),
         Constraint::Length(7),
-    ];
+    ]);
     let table = Table::new(rows, widths)
         .header(header)
         .column_spacing(1)
         .block(pane(i.t("pane-agents"), true));
     frame.render_widget(table, area);
+}
+
+const HOST_W: u16 = 8;
+const MODEL_W: u16 = 10;
+/// Narrowest agent name the optional MODEL column may leave.
+const MIN_NAME: u16 = 10;
+
+/// Which optional columns the agent table shows in a pane `width` wide: HOST
+/// only with several hosts, MODEL only while names keep [`MIN_NAME`] columns.
+fn agent_columns(width: u16, hosts: usize) -> (bool, bool) {
+    // STATE, TOOL, TOKENS, CONTEXT, COST, TIME and the spacing before each.
+    const FIXED: u16 = 13 + 12 + 8 + 13 + 8 + 7 + 6;
+    let inner = width.saturating_sub(2);
+    let show_host = hosts > 1;
+    let host = if show_host { HOST_W + 1 } else { 0 };
+    let show_model = inner >= FIXED + host + MODEL_W + 1 + MIN_NAME;
+    (show_host, show_model)
 }
 
 fn draw_flow(frame: &mut Frame, area: Rect, app: &App) {
@@ -308,4 +345,20 @@ fn draw_events(frame: &mut Frame, area: Rect, app: &App) {
         Paragraph::new(lines).block(pane(app.i18n.t("pane-events"), false)),
         area,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn optional_agent_columns_follow_width_and_hosts() {
+        // One host: no HOST column; MODEL fits the agents pane of a 120-wide screen.
+        assert_eq!(agent_columns(90, 1), (false, true));
+        // Several hosts at 120: HOST stays, MODEL would squeeze the names.
+        assert_eq!(agent_columns(90, 3), (true, false));
+        // Wide screens show both.
+        assert_eq!(agent_columns(157, 3), (true, true));
+        assert_eq!(agent_columns(0, 0), (false, false));
+    }
 }

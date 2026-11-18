@@ -55,10 +55,7 @@ fn draw_head(frame: &mut Frame, area: Rect, app: &App, a: &Agent) {
         Span::styled(format!("{} ", a.name), bold().fg(PURPLE)),
         Span::styled(format!("@ {}  ", a.host), Style::new().fg(DIM)),
         Span::styled(format!("{} ", i.t("agent-model")), Style::new().fg(DIM)),
-        Span::raw(format!(
-            "{}  ",
-            if a.model.is_empty() { "?" } else { &a.model }
-        )),
+        Span::raw(format!("{}  ", short_model(&a.model))),
         Span::styled(format!("{} ", i.t("agent-parent")), Style::new().fg(DIM)),
         Span::raw(format!("{parent}  ")),
         Span::styled(format!("{} ", i.t("agent-project")), Style::new().fg(DIM)),
