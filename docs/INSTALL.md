@@ -372,8 +372,8 @@ Markdown and read leniently:
 
 ### Model and Claude account
 
-Agent lists show a short model label (`claude-opus-5-5` becomes `opus-5.5`; `?` when the
-model is unknown). The Overview drops the HOST column when there is only one host and shows
+Agent lists show a short model label (`claude-opus-5-5` becomes `opus-5.5`); other model
+names are shown as they are, and `?` when the model is empty. The Overview drops the HOST column when there is only one host and shows
 MODEL whenever the agent names keep enough room.
 
 Each machine also shows the Claude account its Claude Code is signed in with:
@@ -382,12 +382,17 @@ organization, plan (`Team`, `Max`, `Pro`, `Enterprise`) and a masked email such 
 the Overview hosts pane shows organization and plan when every host fits. A machine that
 uses an API key, or is not signed in, shows "API key / not signed in".
 
-- **Where it comes from:** `oauthAccount` in Claude Code's `.claude.json`: first
-  `<claude dir>/.claude.json` (with `CLAUDE_CONFIG_DIR` or `--claude-dir`), then
-  `~/.claude.json`. The file is checked at most once a minute and parsed only when it changed.
-- **Privacy:** only the organization, the plan and the masked email are read; the email is
-  masked on the machine that reads it, so the full address never enters a snapshot, the SSH
-  stream or `argus snapshot` output. Tokens and other fields are never read.
+- **Where it comes from:** `oauthAccount` in Claude Code's `.claude.json`, read from
+  `<claude dir>/.claude.json`. Only with the default claude dir (`~/.claude`, no
+  `CLAUDE_CONFIG_DIR` and no `--claude-dir`) is `~/.claude.json` used as a fallback; with a
+  custom dir the home file is never read, since it may belong to another login. The file is
+  checked at most once a minute and parsed only when it changed.
+- **Privacy:** only `organizationName`, `organizationType` and `emailAddress` are
+  deserialized; tokens, names, ids and every other field are skipped without being stored.
+  Every email-shaped text is masked on the machine that reads it, including one inside the
+  organization name (personal accounts are named like `s***@example.com's Organization`), so
+  the full address never enters a snapshot, the SSH stream or `argus snapshot` output. The
+  receiving side masks remote frames again before storing them.
   `argus --no-account` turns it off for this machine and for remote hosts (also those
   added with `:connect`).
 

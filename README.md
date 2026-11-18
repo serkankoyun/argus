@@ -134,7 +134,8 @@ Linux works too).
 Nothing listens on a port; the collector stops when you disconnect.
 
 Each machine's Claude account (organization, plan and a masked email) appears in Fleet and
-under the host in Overview. The email is masked on the machine that reads it, so the full
+under the host in Overview. Every email-shaped text (also one inside the organization name) is
+masked on the machine that reads it, so the full
 address never crosses SSH or appears in `argus snapshot`. `--no-account` turns it off for
 this machine and the remote ones.
 
