@@ -62,6 +62,11 @@ struct Cli {
     #[arg(long, global = true)]
     remote_todos: bool,
 
+    /// Do not read or show the Claude account (organization, plan, masked
+    /// email) of this machine or of remote hosts.
+    #[arg(long, global = true)]
+    no_account: bool,
+
     /// Show the last key Argus received in the footer (for troubleshooting).
     #[arg(long)]
     debug_keys: bool,
@@ -129,7 +134,11 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Cmd::Collect { todos }) => {
             return source::remote::collect(
-                Box::new(ClaudeSource::new(claude_dir).with_todos(todos)),
+                Box::new(
+                    ClaudeSource::new(claude_dir)
+                        .with_todos(todos)
+                        .with_account(!cli.no_account),
+                ),
                 POLL,
             )
         }
@@ -163,14 +172,20 @@ fn main() -> Result<()> {
         let mut sources: Vec<Box<dyn Source>> = Vec::new();
         if !cli.no_local || cli.hosts.is_empty() {
             sources.push(Box::new(
-                ClaudeSource::new(claude_dir).with_todos(local_todos(&cli)),
+                ClaudeSource::new(claude_dir)
+                    .with_todos(local_todos(&cli))
+                    .with_account(!cli.no_account),
             ));
         }
         for h in &cli.hosts {
-            sources.push(Box::new(RemoteSource::new(h.clone(), cli.remote_todos)));
+            sources.push(Box::new(RemoteSource::new(
+                h.clone(),
+                cli.remote_todos,
+                !cli.no_account,
+            )));
         }
         // Always multi, so hosts can be added at runtime with `:connect`.
-        Box::new(MultiSource::new(sources, cli.remote_todos))
+        Box::new(MultiSource::new(sources, cli.remote_todos, !cli.no_account))
     };
     if let Some(Cmd::Snapshot { wait, todos }) = cli.command {
         return print_snapshot(source, wait, todos);
@@ -351,6 +366,20 @@ mod tests {
         assert!(cli.no_todos && cli.remote_todos);
         let cli = Cli::try_parse_from(["argus"]).unwrap();
         assert!(!cli.no_todos && !cli.remote_todos);
+    }
+
+    #[test]
+    fn no_account_is_global_and_off_by_default() {
+        let cli = Cli::try_parse_from(["argus"]).unwrap();
+        assert!(!cli.no_account);
+        let cli = Cli::try_parse_from(["argus", "--no-account"]).unwrap();
+        assert!(cli.no_account);
+        // The remote side receives it after the subcommand.
+        let cli = Cli::try_parse_from(["argus", "collect", "--todos", "--no-account"]).unwrap();
+        assert!(cli.no_account);
+        assert!(matches!(cli.command, Some(Cmd::Collect { todos: true })));
+        let cli = Cli::try_parse_from(["argus", "snapshot", "--no-account"]).unwrap();
+        assert!(cli.no_account);
     }
 
     #[test]

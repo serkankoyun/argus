@@ -10,15 +10,18 @@ pub struct MultiSource {
     last: Option<(Millis, u64, f64)>,
     /// Ask remote hosts (also those added with `:connect`) for todo items.
     remote_todos: bool,
+    /// Show the (masked) Claude account of remote hosts.
+    account: bool,
 }
 
 impl MultiSource {
-    pub fn new(sources: Vec<Box<dyn Source>>, remote_todos: bool) -> Self {
+    pub fn new(sources: Vec<Box<dyn Source>>, remote_todos: bool, account: bool) -> Self {
         Self {
             sources,
             metrics: Metrics::default(),
             last: None,
             remote_todos,
+            account,
         }
     }
 }
@@ -72,6 +75,7 @@ impl Source for MultiSource {
                 self.sources.push(Box::new(RemoteSource::new(
                     target.clone(),
                     self.remote_todos,
+                    self.account,
                 )));
                 Ok(format!("connecting to {target}"))
             }
