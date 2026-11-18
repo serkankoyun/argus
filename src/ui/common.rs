@@ -7,7 +7,8 @@ use ratatui::text::Span;
 use ratatui::widgets::Block;
 
 use crate::app::App;
-use crate::model::{Agent, AgentState, Millis, MsgKind, Series};
+use crate::i18n::I18n;
+use crate::model::{Account, Agent, AgentState, Millis, MsgKind, Series};
 
 pub const ACCENT: Color = Color::Rgb(88, 166, 255);
 pub const DIM: Color = Color::Rgb(139, 148, 158);
@@ -275,6 +276,34 @@ pub fn short_model(model: &str) -> String {
     parts.join("-")
 }
 
+/// A host's Claude account in at most `width` columns: `org · plan · email`
+/// when it fits (and `with_email`), else `org · plan`. Empty when the account
+/// was not read; a translated "not signed in" label without an OAuth login.
+pub fn account_text(i18n: &I18n, acc: Option<&Account>, width: usize, with_email: bool) -> String {
+    let Some(a) = acc else {
+        return String::new();
+    };
+    if !a.signed_in() {
+        return trunc(&i18n.t("account-none"), width);
+    }
+    let short = [a.org.as_str(), a.plan.as_str()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ");
+    if with_email && !a.email.is_empty() {
+        let full = if short.is_empty() {
+            a.email.clone()
+        } else {
+            format!("{short} · {}", a.email)
+        };
+        if full.chars().count() <= width || short.is_empty() {
+            return trunc(&full, width);
+        }
+    }
+    trunc(&short, width)
+}
+
 /// What a tool call does, in plain words: "Bash · running tests",
 /// "Edit · SetupWizardPage.tsx", "Agent → new tester". The raw command stays in
 /// the agent detail view.
@@ -353,6 +382,34 @@ mod tests {
         assert_eq!(duration(42), "42s");
         assert_eq!(tokens(84_200), "84.2k");
         assert_eq!(trunc("abcdef", 4), "abc…");
+    }
+
+    #[test]
+    fn account_text_drops_the_email_first() {
+        let i = I18n::new(Some("en"));
+        let a = Account {
+            org: "Acme".into(),
+            plan: "Team".into(),
+            email: "d***@example.com".into(),
+        };
+        assert_eq!(account_text(&i, None, 40, true), "");
+        assert_eq!(
+            account_text(&i, Some(&a), 40, true),
+            "Acme · Team · d***@example.com"
+        );
+        assert_eq!(account_text(&i, Some(&a), 20, true), "Acme · Team");
+        assert_eq!(account_text(&i, Some(&a), 40, false), "Acme · Team");
+        assert_eq!(account_text(&i, Some(&a), 6, true), "Acme …");
+        let none = account_text(&i, Some(&Account::default()), 40, true);
+        assert_eq!(none, i.t("account-none"));
+        let only_email = Account {
+            email: "d***@example.com".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            account_text(&i, Some(&only_email), 40, true),
+            "d***@example.com"
+        );
     }
 
     #[test]

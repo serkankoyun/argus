@@ -109,11 +109,15 @@ fn draw_card(buf: &mut Buffer, r: Rect, n: &Node, app: &App) {
         Span::styled(format!(" {} ", a.state.symbol()), Style::new().fg(c)),
         Span::styled(format!("{} ", a.name), bold().fg(FG)),
     ]);
-    let host = Line::styled(
-        format!(" {} · {} ", a.host, short_model(&a.model)),
-        Style::new().fg(DIM),
-    )
-    .right_aligned();
+    // The model joins the host only while both titles fit the top border.
+    let with_model = format!(" {} · {} ", a.host, short_model(&a.model));
+    let used = a.name.chars().count() + 4 + with_model.chars().count() + 2;
+    let host_text = if used <= r.width as usize {
+        with_model
+    } else {
+        format!(" {} ", a.host)
+    };
+    let host = Line::styled(host_text, Style::new().fg(DIM)).right_aligned();
     let activity = match a.state {
         AgentState::Working if !a.tool.is_empty() => plain_activity(app, &a.tool, &a.now),
         _ => now_text(app, a),

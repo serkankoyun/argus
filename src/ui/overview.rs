@@ -30,7 +30,10 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
     let mut lines = Vec::new();
-    for h in &app.snapshot.hosts {
+    // The account line only while every host still fits.
+    let hosts = &app.snapshot.hosts;
+    let with_account = hosts.len() * 3 <= area.height.saturating_sub(2) as usize;
+    for h in hosts {
         let (dot, color) = if h.connected {
             ("●", GREEN)
         } else {
@@ -66,6 +69,10 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
                 ),
                 Span::raw(format!(" {}%", h.cpu_pct)),
             ]));
+        }
+        let account = account_text(&app.i18n, h.account.as_ref(), 26, false);
+        if with_account && !account.is_empty() {
+            lines.push(Line::styled(format!("  {account}"), Style::new().fg(DIM)));
         }
     }
     let p = Paragraph::new(lines).block(pane(app.i18n.t("pane-hosts"), false));

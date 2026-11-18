@@ -35,23 +35,40 @@ fn host_cost(app: &App, h: &Host) -> f64 {
         .sum()
 }
 
+/// Columns of the host table without ACCOUNT, and the spacing between them.
+const HOST_COLS: [u16; 9] = [12, 12, 16, 7, 15, 15, 8, 9, 11];
+/// Narrowest ACCOUNT column worth showing.
+const MIN_ACCOUNT: u16 = 12;
+
+/// Width left for the ACCOUNT column in a pane `width` wide (0: no column).
+fn account_width(width: u16) -> u16 {
+    let fixed: u16 = HOST_COLS.iter().sum::<u16>() + HOST_COLS.len() as u16;
+    let left = width.saturating_sub(2).saturating_sub(fixed);
+    if left >= MIN_ACCOUNT {
+        left
+    } else {
+        0
+    }
+}
+
 fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
     let i = &app.i18n;
-    let header = Row::new(
-        [
-            "col-host",
-            "col-region",
-            "col-collector",
-            "col-rtt",
-            "col-cpu",
-            "col-mem",
-            "col-agents",
-            "col-cost",
-            "col-last",
-        ]
-        .map(|k| Cell::from(i.t(k))),
-    )
-    .style(Style::new().fg(DIM));
+    let account_w = account_width(area.width);
+    let mut keys = vec![
+        "col-host",
+        "col-region",
+        "col-collector",
+        "col-rtt",
+        "col-cpu",
+        "col-mem",
+        "col-agents",
+        "col-cost",
+        "col-last",
+    ];
+    if account_w > 0 {
+        keys.push("col-account");
+    }
+    let header = Row::new(keys.into_iter().map(|k| Cell::from(i.t(k)))).style(Style::new().fg(DIM));
     // The Fleet view lists every host (unfiltered) so one can be chosen with Enter.
     let order = app.full.host_names();
     let mut hosts: Vec<&Host> = app.full.hosts.iter().collect();
@@ -79,7 +96,7 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
         } else {
             (format!("◐ {}", i.t("collector-down")), AMBER)
         };
-        Row::new(vec![
+        let mut cells = vec![
             Cell::from(Span::styled(h.name.clone(), bold().fg(FG))),
             Cell::from(Span::styled(h.region.clone(), Style::new().fg(DIM))),
             Cell::from(Span::styled(col, Style::new().fg(cc))),
@@ -112,24 +129,26 @@ fn draw_hosts(frame: &mut Frame, area: Rect, app: &App) {
                 },
                 Style::new().fg(DIM),
             )),
-        ])
-        .style(if idx == cursor {
+        ];
+        if account_w > 0 {
+            cells.push(Cell::from(Span::styled(
+                account_text(i, h.account.as_ref(), account_w as usize, true),
+                Style::new().fg(CYAN),
+            )));
+        }
+        Row::new(cells).style(if idx == cursor {
             Style::new().bg(SELECTED_BG)
         } else {
             Style::new()
         })
     });
-    let widths = [
-        Constraint::Length(12),
-        Constraint::Length(12),
-        Constraint::Length(16),
-        Constraint::Length(7),
-        Constraint::Length(15),
-        Constraint::Length(15),
-        Constraint::Length(8),
-        Constraint::Length(9),
-        Constraint::Min(8),
-    ];
+    let mut widths: Vec<Constraint> = HOST_COLS.iter().map(|&w| Constraint::Length(w)).collect();
+    if account_w > 0 {
+        widths.push(Constraint::Min(account_w));
+    } else if let Some(last) = widths.last_mut() {
+        // As before: LAST EVENT takes what is left.
+        *last = Constraint::Min(8);
+    }
     frame.render_widget(
         Table::new(rows, widths)
             .header(header)
@@ -273,5 +292,18 @@ fn draw_cards(frame: &mut Frame, area: Rect, app: &App) {
             .i18n
             .t_args("cost-by-agent", &[("host", h.name.as_str())]);
         frame.render_widget(Paragraph::new(lines).block(pane(title, false)), *a);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn account_column_only_when_it_has_room() {
+        assert_eq!(account_width(120), 0);
+        assert!(account_width(140) >= MIN_ACCOUNT);
+        assert!(account_width(187) >= 30);
+        assert_eq!(account_width(0), 0);
     }
 }
