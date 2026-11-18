@@ -72,9 +72,19 @@ pub fn strip_account(snap: &mut Snapshot, account: bool) {
         if !account {
             h.account = None;
         } else if let Some(a) = h.account.as_mut() {
-            a.email = super::account::mask_email(&a.email);
+            super::account::sanitize(a);
         }
     }
+}
+
+/// Parses one collector line. Fields the user did not ask for are dropped and
+/// account text is masked here, before the frame is stored, so a raw email
+/// from an older or modified remote never sits in shared state.
+pub fn decode_frame(line: &str, todos: bool, account: bool) -> serde_json::Result<Frame> {
+    let mut f: Frame = serde_json::from_str(line)?;
+    strip_todos(&mut f.snapshot, todos);
+    strip_account(&mut f.snapshot, account);
+    Ok(f)
 }
 
 /// Drops todo items a remote sent without being asked (defence in depth).
@@ -343,7 +353,7 @@ fn run_collector(
     let stdout = child.stdout.take().ok_or("no stdout")?;
     for line in BufReader::new(stdout).lines() {
         let line = line.map_err(|e| e.to_string())?;
-        match serde_json::from_str::<Frame>(&line) {
+        match decode_frame(&line, todos, account) {
             Ok(f) if f.v == PROTOCOL => {
                 if let Ok(mut g) = sh.lock() {
                     g.latest = Some(f.snapshot);
@@ -536,6 +546,42 @@ mod tests {
         let old = r#"{"v":1,"snapshot":{"taken_at":1,"hosts":[{"name":"r","region":"","connected":true,"cpu_pct":0,"mem_pct":0,"rtt_ms":null}],"agents":[],"messages":[],"tools":[],"tasks":[],"metrics":{"tokens_per_sec":{"samples":[]},"cost_per_hour":{"samples":[]},"tools_per_min":{"samples":[]},"msgs_per_min":{"samples":[]},"errors":{"samples":[]},"ctx_avg":{"samples":[]}},"source":"x"}}"#;
         let f: Frame = serde_json::from_str(old).unwrap();
         assert_eq!(f.snapshot.hosts[0].account, None);
+    }
+
+    #[test]
+    fn raw_email_in_a_remote_frame_is_masked_on_arrival() {
+        let snap = Snapshot {
+            hosts: vec![Host {
+                name: "r".into(),
+                region: "ssh".into(),
+                connected: true,
+                cpu_pct: 0,
+                mem_pct: 0,
+                rtt_ms: None,
+                account: Some(Account {
+                    org: "someone@example.com's Organization".into(),
+                    plan: "Max".into(),
+                    email: "someone@example.com".into(),
+                }),
+            }],
+            ..Default::default()
+        };
+        // What an older or modified collector could send.
+        let line = serde_json::to_string(&Frame {
+            v: PROTOCOL,
+            snapshot: snap,
+        })
+        .unwrap();
+        assert!(line.contains("someone@example.com"));
+        let f = decode_frame(&line, false, true).unwrap();
+        let a = f.snapshot.hosts[0].account.as_ref().unwrap();
+        assert_eq!(a.org, "s***@example.com's Organization");
+        assert_eq!(a.email, "s***@example.com");
+        let stored = serde_json::to_string(&f.snapshot).unwrap();
+        assert!(!stored.contains("someone"), "{stored}");
+        let off = decode_frame(&line, false, false).unwrap();
+        assert_eq!(off.snapshot.hosts[0].account, None);
+        assert!(decode_frame("not json", false, true).is_err());
     }
 
     #[test]
