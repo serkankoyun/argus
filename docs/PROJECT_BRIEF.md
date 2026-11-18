@@ -33,16 +33,18 @@ each other**. It brings agents running on different machines into a single scree
 | Backlog view | `b` opens a queue of work rather than agents: "Waiting on you" first (what the user can act on), then per owner NOW → QUEUED → WAITING, then the unassigned pool. Built by one pure function (`queue::build`) from the snapshot, so no queue concept enters the wire protocol and the team/host filters come free. Every item is descriptive (title, reason, age, source, owner; detail panel with description, context, path, blockers) and carries the chain of what it waits on to its root; approvals show how many items they hold. Runs queue only their next pending stage (later ones wait on it in turn) |
 | Backlog sources | Agent Teams tasks keep their description, active form, file and date; `run.json` stages keep their planned agent type; `tasks/todo.md` next to the sessions is parsed leniently (open boxes, indented descriptions, "waiting on you" headings, wait markers) with caps (1 MiB, 200 per file, 500 total, 30 days). Only todo data is new in the snapshot (`todos`, additive; protocol stays 1) |
 | Remote todo.md | tasks/todo.md is read locally by default (`--no-todos` turns it off); remote collectors send it only with `--remote-todos` (`argus collect --todos`), and frames that carry it unasked are dropped, because titles may hold personal data |
+| Model label | Lists show a short model (`claude-opus-5-5` → `opus-5.5`, date suffix and `[1m]` dropped, `?` when unknown) from one helper (`short_model` in `src/ui/common.rs`). Overview shows MODEL only while agent names keep 10 columns and hides HOST with a single host; Room cards add it to the host title only when it fits |
+| Claude account | Each `Host` carries an optional `account` (organization, plan, masked email) read from `oauthAccount` in `.claude.json` (`<claude dir>/.claude.json`, then `~/.claude.json`), checked at most once a minute and parsed only on change. The email is personal data: it is masked at the source (`s***@example.com`) so the raw address never enters a snapshot, `argus snapshot`, logs or SSH; tokens and other fields are never deserialized; the remote side masks again on arrival. Shown by default (the maintainer asked for it) and turned off with `--no-account`, which also reaches remote collectors (`argus collect --no-account`) and `:connect` hosts. Additive field, protocol stays 1 |
 | Aesthetic | Dark theme, monospace, ratatui bordered panes, braille lines, no cartoons |
 
 ## Screens (10)
 
 Design mockups (private canvas, owner only): https://claude.ai/artifact/7QZw7PkMj3kAiQHbydCgU5
 
-1. **Overview** — hosts, agent tree (state, tool, tokens, context, cost), flow summary, metrics, event log
+1. **Overview** — hosts (with their Claude account), agent tree (model, state, tool, tokens, context, cost), flow summary, metrics, event log
 2. **Sequence** — agents as lanes, messages as arrows; task board; selected message details
 3. **Agent detail** — context breakdown, tokens/cache/cost, throughput, tool calls, files touched, live transcript
-4. **Fleet** — collector status, RTT, clock skew, alerts, topology, cost per host
+4. **Fleet** — collector status, RTT, clock skew, Claude account (masked), alerts, topology, cost per host
 5. **Live graph** — nodes and edges, messages travel along edges, edge width = traffic
 6. **Agent room** — a "now" line on every agent, a bubble for the request it is sending, open requests with wait times
 7. **Live lanes** — time flows right to left, vertical arrows between agents, "who asks whom for what" matrix
@@ -107,7 +109,7 @@ Agent messages and "now" descriptions are shown in the user's language.
 - CI: GitHub Actions matrix on Windows + macOS + Linux; tagged releases built automatically (cargo-dist)
 - README GIFs generated automatically with `vhs`
 
-## Status (Nov 14, 2026)
+## Status (Nov 18, 2026)
 
 All ten numbered views plus Teams, History and Backlog are implemented and recorded from the demo in
 `docs/media/`. Live collector, SSH remotes (auto-install, replaced when its version differs), command bar, headless runs,
@@ -121,6 +123,9 @@ rendering fixes found while the maintainer tested on Windows.
 v0.1.33 adds the Backlog view (`b`): Agent Teams tasks, run stages, open requests and
 `tasks/todo.md` as one queue with waiting chains; todo files stay local unless
 `--remote-todos` is given.
+
+v0.1.34 shows a short model label in the agent lists and each machine's Claude account
+(organization, plan, masked email) in Fleet and Overview; `--no-account` turns it off.
 
 Next: replay/scrubbing of past sessions, per-team budgets and metrics, winget, config file for hosts,
 richer Agent Teams support (task files, teammate names) once verified on real data.

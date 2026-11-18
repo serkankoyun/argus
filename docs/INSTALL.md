@@ -199,6 +199,7 @@ Useful options:
 argus --lang en                    # UI language (default: system locale)
 argus --claude-dir /path/.claude   # another Claude config directory
 argus --no-todos                   # do not read tasks/todo.md (e.g. while screen sharing)
+argus --no-account                 # do not read or show the Claude account (all machines)
 argus snapshot --wait 2            # print one snapshot as JSON (for scripts; --todos adds todo items)
 ```
 
@@ -369,6 +370,27 @@ Markdown and read leniently:
   ask with `--remote-todos` (section 4). `argus snapshot` leaves todo items out unless you
   add `argus snapshot --todos`.
 
+### Model and Claude account
+
+Agent lists show a short model label (`claude-opus-5-5` becomes `opus-5.5`; `?` when the
+model is unknown). The Overview drops the HOST column when there is only one host and shows
+MODEL whenever the agent names keep enough room.
+
+Each machine also shows the Claude account its Claude Code is signed in with:
+organization, plan (`Team`, `Max`, `Pro`, `Enterprise`) and a masked email such as
+`d***@example.com`. Fleet shows all three (the email is dropped first on narrow screens);
+the Overview hosts pane shows organization and plan when every host fits. A machine that
+uses an API key, or is not signed in, shows "API key / not signed in".
+
+- **Where it comes from:** `oauthAccount` in Claude Code's `.claude.json`: first
+  `<claude dir>/.claude.json` (with `CLAUDE_CONFIG_DIR` or `--claude-dir`), then
+  `~/.claude.json`. The file is checked at most once a minute and parsed only when it changed.
+- **Privacy:** only the organization, the plan and the masked email are read; the email is
+  masked on the machine that reads it, so the full address never enters a snapshot, the SSH
+  stream or `argus snapshot` output. Tokens and other fields are never read.
+  `argus --no-account` turns it off for this machine and for remote hosts (also those
+  added with `:connect`).
+
 ## 4. Watching remote machines over SSH (optional)
 
 Argus reuses your own `ssh`, so everything in `~/.ssh/config` works (aliases, keys,
@@ -400,6 +422,9 @@ jump hosts, ports).
    Remote machines do not send their `tasks/todo.md` items unless you start Argus with
    `--remote-todos` (the titles would cross the network; it also applies to hosts added
    with `:connect`).
+
+   Remote machines send their Claude account (organization, plan, masked email); start
+   Argus with `--no-account` to leave it out (the remote collector then does not read it).
 
    By default Argus watches **this machine and** the `--host` machines together. If this
    machine has no Claude Code sessions it is hidden; use `--no-local` to leave it out

@@ -68,6 +68,7 @@ argus --host user@server       # also watch a remote machine over SSH (any OS co
 argus --host user@server --no-local   # only the remote machine
 argus --host user@server --remote-todos   # also show the server's tasks/todo.md items
 argus --no-todos               # do not read tasks/todo.md on this machine
+argus --no-account             # do not read or show the Claude account (org, plan, masked email)
 ```
 
 ## More

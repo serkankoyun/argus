@@ -27,6 +27,7 @@ conversation between your agents.
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
 - **Full metrics** — tokens, cache hits, context window, cost, throughput, tool calls, files touched
+- **Model and account at a glance** — a short model label (`opus-5.5`, `sonnet-5.5`) next to each agent, and per machine the Claude account it is signed in with (organization, plan, masked email such as `d***@example.com`); `--no-account` turns the account off
 - **Remote machines over SSH** — `:connect prod-1` and the collector installs itself; no ports to open
 - **Drive your agents** — start new Claude Code runs, message running agents, approve permission requests
 - **Multilingual UI** — English and Turkish today; translations welcome
@@ -97,6 +98,7 @@ argus                      # watch agents on this machine
 argus --demo               # explore the UI with sample data
 argus --lang tr            # force a UI language (default: system locale)
 argus --claude-dir <DIR>   # read another Claude config dir (default: ~/.claude)
+argus --no-account         # do not read or show the Claude account of any machine
 ```
 
 | Key | Action |
@@ -130,6 +132,11 @@ Argus uses your own `ssh` (keys, config, jump hosts all work). If the remote has
 platforms match, otherwise downloaded by the server from the releases page (so Windows →
 Linux works too).
 Nothing listens on a port; the collector stops when you disconnect.
+
+Each machine's Claude account (organization, plan and a masked email) appears in Fleet and
+under the host in Overview. The email is masked on the machine that reads it, so the full
+address never crosses SSH or appears in `argus snapshot`. `--no-account` turns it off for
+this machine and the remote ones.
 
 ## Approving from Argus
 
