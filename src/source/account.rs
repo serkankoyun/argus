@@ -179,7 +179,9 @@ pub fn mask_email(raw: &str) -> String {
 /// "someone@example.com's Organization" becomes "s***@example.com's
 /// Organization". Text without such a token is returned unchanged.
 pub fn mask_emails_in(text: &str) -> String {
-    let local_ok = |c: char| c.is_alphanumeric() || "._%+-*".contains(c);
+    // An apostrophe is valid in a local part (o'brien@...); after the domain
+    // it ends the token, so "x@example.com's" keeps its "'s".
+    let local_ok = |c: char| c.is_alphanumeric() || "._%+-*'".contains(c);
     let domain_ok = |c: char| c.is_alphanumeric() || ".-".contains(c);
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
@@ -426,6 +428,11 @@ mod tests {
             "Team of a***@example.com and x***@example.org."
         );
         assert_eq!(m("(someone@example.com)"), "(s***@example.com)");
+        assert_eq!(m("o'brien@example.com"), "o***@example.com");
+        assert_eq!(
+            m("o'brien@example.com's Organization"),
+            "o***@example.com's Organization"
+        );
         assert_eq!(m("Acme"), "Acme");
         assert_eq!(m("Acme @ HQ"), "Acme @ HQ");
         assert_eq!(m("@example.com"), "@example.com");
