@@ -27,7 +27,7 @@ conversation between your agents.
 - **Live agent graph** — messages travel between agents in real time; edge width shows traffic
 - **"Who asks whom for what"** — every open request, who is waiting on whom, and for how long
 - **Full metrics** — tokens, cache hits, context window, cost, throughput, tool calls, files touched
-- **Model and account at a glance** — a short model label (`opus-5.5`, `sonnet-5.5`) next to each agent, and per machine the Claude account it is signed in with (organization, plan, masked email such as `d***@example.com`); `--no-account` turns the account off
+- **Model and account at a glance** — a short model label (`opus-5.5`, `sonnet-5.5`; other model names are shown as they are, `?` when empty) next to each agent, and per machine the Claude account it is signed in with (organization, plan, masked email such as `d***@example.com`); `--no-account` turns the account off
 - **Remote machines over SSH** — `:connect prod-1` and the collector installs itself; no ports to open
 - **Drive your agents** — start new Claude Code runs, message running agents, approve permission requests
 - **Multilingual UI** — English and Turkish today; translations welcome

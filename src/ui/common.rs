@@ -250,7 +250,9 @@ pub fn trunc(s: &str, n: usize) -> String {
 
 /// Short model label for lists: `claude-opus-5-5` becomes `opus-5.5`. Drops the
 /// `claude-` prefix, a date suffix (`-20260301`) and a context tag (`[1m]`), and
-/// turns a trailing `-N-M` version into `N.M`. Unknown or empty models show `?`.
+/// turns a trailing `-N-M` version into `N.M`. Other names (another vendor's
+/// model, an alias) are shown as they are after that clean-up; an empty model
+/// shows `?`.
 pub fn short_model(model: &str) -> String {
     let m = model.trim();
     let m = m.split('[').next().unwrap_or(m);
